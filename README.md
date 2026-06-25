@@ -1,6 +1,11 @@
 # SIA 4028 Klimadaten-Viewer
 
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
+[![GitHub Pages](https://img.shields.io/badge/Demo-GitHub%20Pages-orange.svg)](https://raffa3l.github.io/SIA-4028-Klimadaten-Viewer/)
+
 Interaktive Web-Applikation zur Visualisierung der stündlichen SIA 4028 Klimadaten von MeteoSchweiz für bauphysikalische, energetische und gebäudetechnische Berechnungen.
+
+[Live-Demo](https://raffa3l.github.io/SIA-4028-Klimadaten-Viewer/)
 
 ## Funktionen
 
