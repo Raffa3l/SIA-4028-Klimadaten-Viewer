@@ -81,10 +81,10 @@ SIA 4028/
 │   ├── charts.js           Plotly-Diagrammkonfigurationen
 │   └── app.js              Hauptlogik der Applikation
 ├── Ressourcen/             Klimadaten (CSV-Dateien)
-│   ├── KLO/               Zürich / Kloten
-│   ├── REH/               Zürich / Affoltern
-│   ├── SMA/               Zürich / Fluntern
-│   └── ZUESTA/            Zürich Stadt
+│   ├── KLO/                Zürich / Kloten
+│   ├── REH/                Zürich / Affoltern
+│   ├── SMA/                Zürich / Fluntern
+│   └── ZUESTA/             Zürich Stadt
 ├── README.md
 └── CHANGELOG.md
 ```
