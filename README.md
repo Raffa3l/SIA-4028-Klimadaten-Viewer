@@ -44,7 +44,7 @@ Die Daten stammen aus dem SIA 4028 Klimadatensatz von MeteoSchweiz:
 
 Quelle: MeteoSchweiz (Hrsg.) 2025: Bereitstellung der Klimadaten für Bauphysik, Energie- und Gebäudetechnik (SIA 4028), Bundesamt für Meteorologie und Klimatologie MeteoSchweiz, BAFU, BFE, SIA, Zürich.
 
-Lizenz der Daten: CC BY 4.0
+Lizenz der Daten: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
 ## Installation und Start
 
