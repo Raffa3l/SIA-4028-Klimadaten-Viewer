@@ -1,6 +1,7 @@
 # SIA 4028 Klimadaten-Viewer
 
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
+[![Lizenz: CC BY 4.0](https://img.shields.io/badge/Daten%20%26%20Docs-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
 [![GitHub Pages](https://img.shields.io/badge/Demo-GitHub%20Pages-orange.svg)](https://raffa3l.github.io/SIA-4028-Klimadaten-Viewer/)
 
 Interaktive Web-Applikation zur Visualisierung der stündlichen SIA 4028 Klimadaten von MeteoSchweiz für bauphysikalische, energetische und gebäudetechnische Berechnungen.
@@ -14,6 +15,8 @@ Interaktive Web-Applikation zur Visualisierung der stündlichen SIA 4028 Klimada
 - **Szenario-Vergleich**: Aktuelles Klima (2023) vs. zukünftiges Klima (2060 RCP8.5)
 - **Zwei Varianten**: DRY (durchschnittliche Monate) und 1-in-10 (warmer Sommer)
 - **Interaktive Charts**: Zoom, Pan, Hover-Tooltips, Export als PNG
+
+Der Quellcode in diesem Repository steht unter der [MIT-Lizenz](LICENSE).
 
 ### Diagrammtypen und Aggregation
 
