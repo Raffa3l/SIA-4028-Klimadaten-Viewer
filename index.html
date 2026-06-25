@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIA 4028 Klimadaten-Viewer</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <h1>SIA 4028 Klimadaten-Viewer</h1>
+    <span class="subtitle">Stündliche Klimadaten für Bauphysik und Gebäudetechnik</span>
+  </div>
+</header>
+
+<div class="app-container">
+  <aside class="sidebar">
+    <h2>Station</h2>
+    <select id="station-select">
+      <option value="">Laden...</option>
+    </select>
+    <div id="station-info"></div>
+
+    <h2>Parameter</h2>
+    <select id="param-select">
+      <option value="">Bitte Station wählen</option>
+    </select>
+
+    <h2>Szenarien</h2>
+    <div class="scenario-checkboxes">
+      <label>
+        <input type="checkbox" class="scenario-toggle" value="dry2023" checked>
+        <span class="color-dot" style="background: rgb(27, 79, 114)"></span>
+        2023 DRY
+      </label>
+      <label>
+        <input type="checkbox" class="scenario-toggle" value="warm2023" checked>
+        <span class="color-dot" style="background: rgb(46, 134, 193)"></span>
+        2023 1-in-10 Warmsummer
+      </label>
+      <label>
+        <input type="checkbox" class="scenario-toggle" value="dry2060" checked>
+        <span class="color-dot" style="background: rgb(192, 57, 43)"></span>
+        2060 RCP8.5 DRY
+      </label>
+      <label>
+        <input type="checkbox" class="scenario-toggle" value="warm2060" checked>
+        <span class="color-dot" style="background: rgb(231, 76, 60)"></span>
+        2060 RCP8.5 1-in-10 Warmsummer
+      </label>
+    </div>
+
+    <h2>Ansicht</h2>
+    <select id="view-mode">
+      <option value="all">Alle Diagramme</option>
+      <option value="timeseries">Zeitreihe</option>
+      <option value="comparison">Monatsvergleich</option>
+      <option value="difference">Differenz 2060 vs. 2023</option>
+      <option value="heatmap">Heatmap (Stunde × Tag)</option>
+    </select>
+
+    <h2>Aggregation</h2>
+    <select id="aggregation-select">
+      <option value="hourly">Stündlich</option>
+      <option value="daily" selected>Tagesmittel</option>
+      <option value="monthly">Monatsmittel</option>
+    </select>
+  </aside>
+
+  <main class="main-content">
+    <div id="param-note"></div>
+    <div id="chart-timeseries" class="chart-container"></div>
+    <div id="chart-comparison" class="chart-container"></div>
+    <div id="chart-difference" class="chart-container"></div>
+    <div id="heatmap-wrapper"></div>
+  </main>
+</div>
+
+<footer class="app-footer">
+  Quelle: MeteoSchweiz (Hrsg.) 2025: Bereitstellung der Klimadaten für Bauphysik, Energie- und Gebäudetechnik (SIA 4028) — Lizenz CC BY 4.0
+</footer>
+
+<div id="loading-overlay"><div class="spinner"></div></div>
+<div id="error-message"></div>
+
+<script src="js/config.js"></script>
+<script src="js/data-loader.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

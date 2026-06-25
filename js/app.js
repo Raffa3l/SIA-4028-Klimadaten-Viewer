@@ -1,0 +1,270 @@
+class App {
+  constructor() {
+    this.loader = new DataLoader(CONFIG.dataDir);
+    this.charts = new ChartManager(this.loader);
+    this.currentStationData = null;
+    this.currentStation = null;
+    this.availableParams = null;
+    this._loadId = 0;
+  }
+
+  async init() {
+    this.showLoading(true);
+    try {
+      await this.populateStations();
+      this.bindEvents();
+      const firstStation = document.getElementById('station-select').value;
+      if (firstStation) await this.loadStation(firstStation);
+    } catch (err) {
+      this.showError('Fehler beim Laden der App: ' + err.message);
+    }
+    this.showLoading(false);
+  }
+
+  async populateStations() {
+    const select = document.getElementById('station-select');
+    const available = await this.loader.detectAvailableStations();
+
+    if (available.length === 0) {
+      this.showError(
+        'Keine Stationsdaten gefunden. Bitte stellen Sie sicher, dass die CSV-Dateien im Verzeichnis "Ressourcen/" vorhanden sind.'
+      );
+      return;
+    }
+
+    select.innerHTML = '';
+    for (const key of available) {
+      const station = CONFIG.stations[key];
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = `${station.name} (${key})`;
+      select.appendChild(opt);
+    }
+  }
+
+  bindEvents() {
+    document.getElementById('station-select').addEventListener('change', () => {
+      this.loadStation(document.getElementById('station-select').value);
+    });
+
+    document.getElementById('param-select').addEventListener('change', () => {
+      this.updateCharts();
+    });
+
+    document.getElementById('aggregation-select').addEventListener('change', () => {
+      this.updateCharts();
+    });
+
+    document.getElementById('view-mode').addEventListener('change', () => {
+      this.updateCharts();
+    });
+
+    document.querySelectorAll('.scenario-toggle').forEach((cb) => {
+      cb.addEventListener('change', () => this.updateCharts());
+    });
+  }
+
+  async loadStation(stationKey) {
+    const loadId = ++this._loadId;
+    this.showLoading(true);
+    this.currentStation = stationKey;
+
+    try {
+      const data = await this.loader.loadStationData(stationKey);
+      if (loadId !== this._loadId) return;
+      this.currentStationData = data;
+      this.availableParams = this.loader.getAvailableParameters(this.currentStationData);
+      this.populateParameters();
+      this.updateStationInfo(stationKey);
+      await this.updateCharts();
+    } catch (err) {
+      if (loadId !== this._loadId) return;
+      this.showError('Fehler beim Laden der Stationsdaten: ' + err.message);
+    }
+
+    this.showLoading(false);
+  }
+
+  populateParameters() {
+    const select = document.getElementById('param-select');
+    const currentValue = select.value;
+    select.innerHTML = '';
+
+    if (this.availableParams.comparable.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = 'Vergleichbar (2023 & 2060)';
+      for (const p of this.availableParams.comparable) {
+        const opt = document.createElement('option');
+        opt.value = p.key;
+        opt.textContent = `${p.label} (${p.unit})`;
+        group.appendChild(opt);
+      }
+      select.appendChild(group);
+    }
+
+    if (this.availableParams.only2023.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = 'Nur 2023';
+      for (const p of this.availableParams.only2023) {
+        const opt = document.createElement('option');
+        opt.value = p.key;
+        opt.textContent = `${p.label} (${p.unit})`;
+        group.appendChild(opt);
+      }
+      select.appendChild(group);
+    }
+
+    if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+      select.value = currentValue;
+    }
+  }
+
+  updateStationInfo(stationKey) {
+    const station = CONFIG.stations[stationKey];
+    const infoEl = document.getElementById('station-info');
+    const dataStatus = [];
+
+    for (const [key, label] of Object.entries(SCENARIO_LABELS)) {
+      const available = this.currentStationData[key] !== null;
+      dataStatus.push(
+        `<span class="status-badge ${available ? 'available' : 'unavailable'}">${label}</span>`
+      );
+    }
+
+    infoEl.innerHTML = `
+      <strong>${station.name}</strong>
+      <div class="data-status">${dataStatus.join(' ')}</div>
+    `;
+  }
+
+  getActiveScenarios() {
+    const scenarios = [];
+    document.querySelectorAll('.scenario-toggle:checked').forEach((cb) => {
+      scenarios.push(cb.value);
+    });
+    return scenarios;
+  }
+
+  async updateCharts() {
+    if (!this.currentStationData) return;
+
+    const paramKey = document.getElementById('param-select').value;
+    const aggregation = document.getElementById('aggregation-select').value;
+    const viewMode = document.getElementById('view-mode').value;
+    const activeScenarios = this.getActiveScenarios();
+
+    if (!paramKey) return;
+
+    const isComparable = CONFIG.parameterMapping.hasOwnProperty(paramKey);
+    const scenariosToUse = isComparable
+      ? activeScenarios
+      : activeScenarios.filter((s) => s.includes('2023'));
+
+    const isMonthly = aggregation === 'monthly';
+    const showTimeseries = viewMode === 'timeseries' || viewMode === 'all';
+    const showComparison = (viewMode === 'comparison' || viewMode === 'all') && isComparable && isMonthly;
+    const showDifference = (viewMode === 'difference' || viewMode === 'all') && isComparable && isMonthly;
+    const isHourly = aggregation === 'hourly';
+    const showHeatmap = (viewMode === 'heatmap' || viewMode === 'all') && isHourly;
+
+    document.getElementById('chart-timeseries').style.display = showTimeseries ? 'block' : 'none';
+    document.getElementById('chart-comparison').style.display = showComparison ? 'block' : 'none';
+    document.getElementById('chart-difference').style.display = showDifference ? 'block' : 'none';
+
+    const heatmapWrapper = document.getElementById('heatmap-wrapper');
+    heatmapWrapper.style.display = showHeatmap ? 'block' : 'none';
+    this.ensureHeatmapContainers(showHeatmap ? scenariosToUse : []);
+
+    // Force reflow so Plotly reads correct container dimensions
+    document.getElementById('chart-timeseries').offsetHeight;
+
+    const tasks = [];
+
+    if (showTimeseries) {
+      tasks.push(
+        this.charts.renderTimeseries(
+          'chart-timeseries',
+          this.currentStationData,
+          paramKey,
+          scenariosToUse,
+          aggregation
+        )
+      );
+    }
+
+    if (showComparison) {
+      tasks.push(
+        this.charts.renderComparisonChart(
+          'chart-comparison',
+          this.currentStationData,
+          paramKey,
+          scenariosToUse
+        )
+      );
+    }
+
+    if (showDifference) {
+      tasks.push(
+        this.charts.renderDifferenceChart(
+          'chart-difference',
+          this.currentStationData,
+          paramKey,
+          scenariosToUse
+        )
+      );
+    }
+
+    if (showHeatmap) {
+      for (const scenario of scenariosToUse) {
+        const data = this.currentStationData[scenario];
+        if (!data) continue;
+        tasks.push(
+          this.charts.renderHeatmap(
+            `chart-heatmap-${scenario}`,
+            data,
+            paramKey,
+            scenario.includes('2060'),
+            SCENARIO_LABELS[scenario]
+          )
+        );
+      }
+    }
+
+    await Promise.all(tasks);
+
+    if (!isComparable && activeScenarios.some((s) => s.includes('2060'))) {
+      document.getElementById('param-note').style.display = 'block';
+      document.getElementById('param-note').textContent =
+        'Hinweis: Dieser Parameter ist nur für 2023 verfügbar. 2060-Szenarien werden ausgeblendet.';
+    } else {
+      document.getElementById('param-note').style.display = 'none';
+    }
+  }
+
+  ensureHeatmapContainers(scenarios) {
+    const wrapper = document.getElementById('heatmap-wrapper');
+    wrapper.innerHTML = '';
+    for (const scenario of scenarios) {
+      const div = document.createElement('div');
+      div.id = `chart-heatmap-${scenario}`;
+      div.className = 'chart-container';
+      wrapper.appendChild(div);
+    }
+  }
+
+  showLoading(show) {
+    document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+  }
+
+  showError(message) {
+    const el = document.getElementById('error-message');
+    el.textContent = message;
+    el.style.display = 'block';
+    setTimeout(() => (el.style.display = 'none'), 8000);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const app = new App();
+  app.init();
+});
