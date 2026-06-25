@@ -85,10 +85,8 @@ SIA 4028/
 │   ├── REH/               Zürich / Affoltern
 │   ├── SMA/               Zürich / Fluntern
 │   └── ZUESTA/            Zürich Stadt
-├── CLAUDE.md
 ├── README.md
-├── CHANGELOG.md
-└── .gitignore
+└── CHANGELOG.md
 ```
 
 ## Datenformat
