@@ -144,23 +144,6 @@ body {
   flex-shrink: 0;
 }
 
-.measurement-source-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: var(--meteo-text-light);
-  padding: 8px 0 2px;
-  margin-top: 4px;
-  border-top: 1px solid var(--meteo-border);
-}
-
-.measurement-source-info .color-dot {
-  width: 10px;
-  height: 10px;
-  background: #1a1a2e;
-  border-radius: 2px;
-}
 
 .main-content {
   flex: 1;

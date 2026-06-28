@@ -84,6 +84,38 @@ class App {
     });
   }
 
+  buildMeasurementCheckboxes() {
+    const measData = this.stationMeasurementData || this.walcheData;
+    const container = document.getElementById('measurement-checkboxes');
+    container.innerHTML = '';
+
+    if (!measData || !this.currentStation) return;
+
+    const years = [...new Set(measData.map((e) => e.year))].sort();
+    const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
+
+    years.forEach((year, idx) => {
+      const color = MEASUREMENT_YEAR_COLORS[idx % MEASUREMENT_YEAR_COLORS.length];
+      const label = document.createElement('label');
+      label.innerHTML = `
+        <input type="checkbox" class="measurement-year-toggle" value="${year}" checked>
+        <span class="color-dot" style="background: ${color}"></span>
+        ${measLabel} ${year}
+      `;
+      container.appendChild(label);
+    });
+
+    container.querySelectorAll('.measurement-year-toggle').forEach((cb) => {
+      cb.addEventListener('change', () => this.updateCharts());
+    });
+  }
+
+  getActiveYears() {
+    return [...document.querySelectorAll('.measurement-year-toggle:checked')].map((cb) =>
+      parseInt(cb.value)
+    );
+  }
+
   async loadStation(stationKey) {
     const loadId = ++this._loadId;
     this.showLoading(true);
@@ -100,6 +132,7 @@ class App {
       this.availableParams = this.loader.getAvailableParameters(this.currentStationData);
       this.populateParameters();
       this.updateStationInfo(stationKey);
+      this.buildMeasurementCheckboxes();
       await this.updateCharts();
     } catch (err) {
       if (loadId !== this._loadId) return;
@@ -159,11 +192,6 @@ class App {
       <strong>${station.name}</strong>
       <div class="data-status">${dataStatus.join(' ')}</div>
     `;
-
-    // Update measurement source label in sidebar
-    const measLabel = station?.measurementLabel || 'Messung Walche';
-    const measEl = document.getElementById('measurement-source-label');
-    if (measEl) measEl.textContent = measLabel;
   }
 
   getActiveScenarios() {
@@ -189,10 +217,12 @@ class App {
       ? activeScenarios
       : activeScenarios.filter((s) => s.includes('2023'));
 
-    // Show measurement-source legend only when temp is active and measurements exist
     const hasMeasurements = paramKey === 'temp' && !!(this.stationMeasurementData || this.walcheData);
-    const measInfoEl = document.querySelector('.measurement-source-info');
-    if (measInfoEl) measInfoEl.style.display = hasMeasurements ? 'flex' : 'none';
+    const measHeading = document.getElementById('measurements-heading');
+    const measContainer = document.getElementById('measurement-checkboxes');
+    if (measHeading) measHeading.style.display = hasMeasurements ? '' : 'none';
+    if (measContainer) measContainer.style.display = hasMeasurements ? '' : 'none';
+    const activeYears = hasMeasurements ? this.getActiveYears() : [];
 
     const isMonthly = aggregation === 'monthly';
     const showWalche = viewMode === 'walche';
@@ -217,9 +247,10 @@ class App {
 
     const tasks = [];
 
+    const measData = hasMeasurements ? (this.stationMeasurementData || this.walcheData) : null;
+    const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
+
     if (showTimeseries) {
-      const measData = paramKey === 'temp' ? (this.stationMeasurementData || this.walcheData) : null;
-      const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
       tasks.push(
         this.charts.renderTimeseries(
           'chart-timeseries',
@@ -228,7 +259,8 @@ class App {
           scenariosToUse,
           aggregation,
           measData,
-          measLabel
+          measLabel,
+          activeYears
         )
       );
     }
@@ -239,7 +271,10 @@ class App {
           'chart-comparison',
           this.currentStationData,
           paramKey,
-          scenariosToUse
+          scenariosToUse,
+          measData,
+          measLabel,
+          activeYears
         )
       );
     }
@@ -272,11 +307,11 @@ class App {
     }
 
     if (showWalche) {
-      const measData = this.stationMeasurementData || this.walcheData;
-      const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
-      if (measData) {
-        tasks.push(this.charts.renderWalcheOverlay('chart-walche-overlay', measData, measLabel, this.currentStationData));
-        tasks.push(this.charts.renderWalcheRMSE('chart-walche-rmse', measData, measLabel, this.currentStationData));
+      const walcheMeasData = this.stationMeasurementData || this.walcheData;
+      const walcheMeasLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
+      if (walcheMeasData) {
+        tasks.push(this.charts.renderWalcheOverlay('chart-walche-overlay', walcheMeasData, walcheMeasLabel, this.currentStationData, activeYears));
+        tasks.push(this.charts.renderWalcheRMSE('chart-walche-rmse', walcheMeasData, walcheMeasLabel, this.currentStationData, activeYears));
       } else {
         document.getElementById('chart-walche-overlay').style.display = 'none';
         document.getElementById('chart-walche-rmse').style.display = 'none';

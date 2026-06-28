@@ -164,15 +164,17 @@ class ChartManager {
     };
   }
 
-  _measurementTraces(measData, measLabel, aggregation) {
+  _measurementTraces(measData, measLabel, aggregation, activeYears = null) {
     const byYear = new Map();
     for (const entry of measData) {
       if (!byYear.has(entry.year)) byYear.set(entry.year, []);
       byYear.get(entry.year).push(entry);
     }
 
+    const allYears = [...byYear.keys()].sort();
     const traces = [];
-    [...byYear.keys()].sort().forEach((year, idx) => {
+    allYears.forEach((year, idx) => {
+      if (activeYears && !activeYears.includes(year)) return;
       const yearData = byYear.get(year);
       const color = MEASUREMENT_YEAR_COLORS[idx % MEASUREMENT_YEAR_COLORS.length];
 
@@ -206,7 +208,7 @@ class ChartManager {
     return traces;
   }
 
-  async renderTimeseries(containerId, stationData, paramKey, activeScenarios, aggregation, measData = null, measLabel = '') {
+  async renderTimeseries(containerId, stationData, paramKey, activeScenarios, aggregation, measData = null, measLabel = '', activeYears = null) {
     const paramInfo =
       CONFIG.parameterMapping[paramKey] || CONFIG.parametersOnly2023[paramKey];
     if (!paramInfo) return;
@@ -219,7 +221,7 @@ class ChartManager {
 
     // Append measured data traces (temperature only)
     if (measData && paramKey === 'temp') {
-      traces.push(...this._measurementTraces(measData, measLabel, aggregation));
+      traces.push(...this._measurementTraces(measData, measLabel, aggregation, activeYears));
     }
 
     const layout = this.buildLayout(paramInfo, title);
@@ -244,7 +246,7 @@ class ChartManager {
     return sums.map((s, i) => counts[i] > 0 ? (useSum ? s : s / counts[i]) : 0);
   }
 
-  async renderComparisonChart(containerId, stationData, paramKey, activeScenarios) {
+  async renderComparisonChart(containerId, stationData, paramKey, activeScenarios, measData = null, measLabel = '', activeYears = null) {
     const paramInfo = CONFIG.parameterMapping[paramKey];
     if (!paramInfo) return;
 
@@ -267,6 +269,33 @@ class ChartManager {
         name: SCENARIO_LABELS[scenario],
         marker: { color: CHART_COLORS[scenario] },
         hovertemplate: '%{y:.1f}<extra></extra>',
+      });
+    }
+
+    // Add measurement bars for temperature
+    if (paramKey === 'temp' && measData) {
+      const byYear = new Map();
+      for (const entry of measData) {
+        if (!byYear.has(entry.year)) byYear.set(entry.year, []);
+        byYear.get(entry.year).push(entry);
+      }
+      const allYears = [...byYear.keys()].sort();
+      allYears.forEach((year, idx) => {
+        if (activeYears && !activeYears.includes(year)) return;
+        const color = MEASUREMENT_YEAR_COLORS[idx % MEASUREMENT_YEAR_COLORS.length];
+        const { dates, means } = this._monthlyMeansFromHourly(byYear.get(year));
+        const yValues = new Array(12).fill(null);
+        dates.forEach((d, i) => {
+          yValues[parseInt(d.substring(5, 7)) - 1] = means[i];
+        });
+        traces.push({
+          x: CONFIG.months,
+          y: yValues,
+          type: 'bar',
+          name: `${measLabel} ${year}`,
+          marker: { color },
+          hovertemplate: '%{y:.1f}<extra></extra>',
+        });
       });
     }
 
@@ -415,7 +444,7 @@ class ChartManager {
     return abs.length > 0 ? abs.reduce((a, b) => a + b, 0) / abs.length : NaN;
   }
 
-  async renderWalcheOverlay(containerId, walcheData, measurementLabel, stationData) {
+  async renderWalcheOverlay(containerId, walcheData, measurementLabel, stationData, activeYears = null) {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
     const walcheMonths = new Set(walcheData.map((r) => r.month));
@@ -442,7 +471,7 @@ class ChartManager {
     }
 
     // One measured trace per year — grouped by actual calendar year
-    traces.push(...this._measurementTraces(walcheData, measurementLabel, 'daily'));
+    traces.push(...this._measurementTraces(walcheData, measurementLabel, 'daily', activeYears));
 
     const layout = {
       ...METEO_LAYOUT,
@@ -470,7 +499,7 @@ class ChartManager {
     });
   }
 
-  async renderWalcheRMSE(containerId, walcheData, measurementLabel, stationData) {
+  async renderWalcheRMSE(containerId, walcheData, measurementLabel, stationData, activeYears = null) {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
 
@@ -485,6 +514,7 @@ class ChartManager {
     const traces = [];
 
     years.forEach((year, yearIdx) => {
+      if (activeYears && !activeYears.includes(year)) return;
       const yearData = byYear.get(year);
       const yearMonths = new Set(yearData.map((r) => r.month));
       const yearDaily = this._dailyMeansFromHourly(yearData);
