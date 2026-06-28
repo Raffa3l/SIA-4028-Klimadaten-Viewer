@@ -2,12 +2,12 @@ const CHART_COLORS = {
   dry2023:  'rgb(27, 79, 114)',
   warm2023: 'rgb(46, 134, 193)',
   dry2060:  'rgb(192, 57, 43)',
-  warm2060: 'rgb(231, 76, 60)',
+  warm2060: 'rgb(230, 126, 34)',
 
   dry2023_fill:  'rgba(27, 79, 114, 0.08)',
   warm2023_fill: 'rgba(46, 134, 193, 0.08)',
   dry2060_fill:  'rgba(192, 57, 43, 0.08)',
-  warm2060_fill: 'rgba(231, 76, 60, 0.08)',
+  warm2060_fill: 'rgba(230, 126, 34, 0.08)',
 };
 
 const SCENARIO_LABELS = {
@@ -273,6 +273,203 @@ class ChartManager {
       yaxis: {
         ...METEO_LAYOUT.yaxis,
         title: { text: `Δ ${paramInfo.label} (${paramInfo.unit})`, standoff: 10 },
+      },
+    };
+
+    await Plotly.newPlot(containerId, traces, layout, {
+      responsive: true,
+      displaylogo: false,
+    });
+  }
+
+  _dailyMeansFromHourly(hourlyData) {
+    const byDate = new Map();
+    for (const { date, value } of hourlyData) {
+      if (!byDate.has(date)) byDate.set(date, []);
+      byDate.get(date).push(value);
+    }
+    const dates = [...byDate.keys()].sort();
+    return {
+      dates,
+      means: dates.map((d) => {
+        const v = byDate.get(d);
+        return v.reduce((a, b) => a + b, 0) / v.length;
+      }),
+    };
+  }
+
+  _dailyMeansFromClimate(data, paramKey, is2060, filterMonths) {
+    const timestamps = this.loader.buildTimestamps(data);
+    const values = this.loader.getParameterValues(data, paramKey, is2060);
+    if (!values) return null;
+
+    const byDate = new Map();
+    timestamps.forEach((ts, i) => {
+      const month = parseInt(ts.slice(5, 7));
+      if (!filterMonths || filterMonths.has(month)) {
+        const date = ts.slice(0, 10);
+        if (!byDate.has(date)) byDate.set(date, []);
+        byDate.get(date).push(values[i]);
+      }
+    });
+
+    const dates = [...byDate.keys()].sort();
+    return {
+      dates,
+      means: dates.map((d) => {
+        const v = byDate.get(d);
+        return v.reduce((a, b) => a + b, 0) / v.length;
+      }),
+    };
+  }
+
+  _rmse(walcheDates, walcheMeans, climateDates, climateMeans) {
+    const climateMap = new Map(climateDates.map((d, i) => [d, climateMeans[i]]));
+    const sq = walcheDates
+      .map((d, i) => {
+        const c = climateMap.get(d);
+        return c !== undefined ? (walcheMeans[i] - c) ** 2 : null;
+      })
+      .filter((v) => v !== null);
+    return sq.length > 0 ? Math.sqrt(sq.reduce((a, b) => a + b, 0) / sq.length) : NaN;
+  }
+
+  _mae(walcheDates, walcheMeans, climateDates, climateMeans) {
+    const climateMap = new Map(climateDates.map((d, i) => [d, climateMeans[i]]));
+    const abs = walcheDates
+      .map((d, i) => {
+        const c = climateMap.get(d);
+        return c !== undefined ? Math.abs(walcheMeans[i] - c) : null;
+      })
+      .filter((v) => v !== null);
+    return abs.length > 0 ? abs.reduce((a, b) => a + b, 0) / abs.length : NaN;
+  }
+
+  async renderWalcheOverlay(containerId, walcheData, stationData) {
+    const stationKey = document.getElementById('station-select')?.value;
+    const stationName = CONFIG.stations[stationKey]?.name || stationKey;
+    const walcheMonths = new Set(walcheData.map((r) => r.month));
+    const walcheDaily = this._dailyMeansFromHourly(walcheData);
+
+    const traces = [];
+
+    for (const [scenario, label] of Object.entries(SCENARIO_LABELS)) {
+      const data = stationData[scenario];
+      if (!data) continue;
+      const is2060 = scenario.includes('2060');
+      const daily = this._dailyMeansFromClimate(data, 'temp', is2060, walcheMonths);
+      if (!daily) continue;
+
+      traces.push({
+        x: daily.dates,
+        y: daily.means,
+        type: 'scatter',
+        mode: 'lines',
+        name: label,
+        line: { color: CHART_COLORS[scenario], width: 1.5 },
+        opacity: 0.85,
+        hovertemplate: '%{y:.1f} °C<extra></extra>',
+      });
+    }
+
+    // Walche measured values on top — bold, dotted, dark
+    traces.push({
+      x: walcheDaily.dates,
+      y: walcheDaily.means,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Messung Walche',
+      line: { color: '#1a1a2e', width: 2.5, dash: 'dot' },
+      hovertemplate: '%{y:.1f} °C<extra></extra>',
+    });
+
+    const layout = {
+      ...METEO_LAYOUT,
+      title: {
+        text: `Lufttemperatur Tagesmittel: Messung Walche vs. Klimadaten ${stationName}`,
+        font: { size: 16, weight: 'bold' },
+        x: 0.01,
+        xanchor: 'left',
+      },
+      xaxis: {
+        ...METEO_LAYOUT.xaxis,
+        title: { text: 'Datum (Jan–Jun 2026, normiert auf 2024)' },
+      },
+      yaxis: {
+        ...METEO_LAYOUT.yaxis,
+        title: { text: 'Lufttemperatur (°C)', standoff: 10 },
+      },
+    };
+
+    await Plotly.newPlot(containerId, traces, layout, {
+      responsive: true,
+      displaylogo: false,
+      modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+    });
+  }
+
+  async renderWalcheRMSE(containerId, walcheData, stationData) {
+    const stationKey = document.getElementById('station-select')?.value;
+    const stationName = CONFIG.stations[stationKey]?.name || stationKey;
+    const walcheMonths = new Set(walcheData.map((r) => r.month));
+    const walcheDaily = this._dailyMeansFromHourly(walcheData);
+
+    const labels = [];
+    const rmseVals = [];
+    const maeVals = [];
+    const colors = [];
+
+    for (const scenario of Object.keys(SCENARIO_LABELS)) {
+      const data = stationData[scenario];
+      if (!data) continue;
+      const is2060 = scenario.includes('2060');
+      const daily = this._dailyMeansFromClimate(data, 'temp', is2060, walcheMonths);
+      if (!daily) continue;
+
+      labels.push(SCENARIO_LABELS[scenario]);
+      rmseVals.push(this._rmse(walcheDaily.dates, walcheDaily.means, daily.dates, daily.means));
+      maeVals.push(this._mae(walcheDaily.dates, walcheDaily.means, daily.dates, daily.means));
+      colors.push(CHART_COLORS[scenario]);
+    }
+
+    const traces = [
+      {
+        x: labels,
+        y: rmseVals,
+        type: 'bar',
+        name: 'RMSE',
+        marker: { color: colors },
+        text: rmseVals.map((v) => `${v.toFixed(2)} °C`),
+        textposition: 'outside',
+        hovertemplate: 'RMSE: %{y:.2f} °C<extra></extra>',
+      },
+      {
+        x: labels,
+        y: maeVals,
+        type: 'scatter',
+        mode: 'markers',
+        name: 'MAE',
+        marker: { color: '#1a1a2e', size: 11, symbol: 'diamond' },
+        hovertemplate: 'MAE: %{y:.2f} °C<extra></extra>',
+      },
+    ];
+
+    const maxVal = Math.max(...rmseVals, ...maeVals);
+
+    const layout = {
+      ...METEO_LAYOUT,
+      title: {
+        text: `Abweichung vom Messwert Walche — ${stationName} (Tagesmitten Jan–Jun)`,
+        font: { size: 16, weight: 'bold' },
+        x: 0.01,
+        xanchor: 'left',
+      },
+      hovermode: 'x',
+      xaxis: { ...BASE_AXIS },
+      yaxis: {
+        ...METEO_LAYOUT.yaxis,
+        title: { text: 'Abweichung (°C)', standoff: 10 },
+        range: [0, maxVal * 1.25],
       },
     };
 

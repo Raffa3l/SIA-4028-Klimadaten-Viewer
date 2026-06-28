@@ -5,6 +5,7 @@ class App {
     this.currentStationData = null;
     this.currentStation = null;
     this.availableParams = null;
+    this.walcheData = null;
     this._loadId = 0;
   }
 
@@ -14,7 +15,9 @@ class App {
       await this.populateStations();
       this.bindEvents();
       const firstStation = document.getElementById('station-select').value;
+      const walchePromise = this.loader.loadWalcheData().then((d) => { this.walcheData = d; }).catch(() => {});
       if (firstStation) await this.loadStation(firstStation);
+      await walchePromise;
     } catch (err) {
       this.showError('Fehler beim Laden der App: ' + err.message);
     }
@@ -27,7 +30,7 @@ class App {
 
     if (available.length === 0) {
       this.showError(
-        'Keine Stationsdaten gefunden. Bitte stellen Sie sicher, dass die CSV-Dateien im Verzeichnis "Ressourcen/" vorhanden sind.'
+        'Keine Stationsdaten gefunden. Bitte stellen Sie sicher, dass die CSV-Dateien im Verzeichnis "data/" vorhanden sind.'
       );
       return;
     }
@@ -161,15 +164,18 @@ class App {
       : activeScenarios.filter((s) => s.includes('2023'));
 
     const isMonthly = aggregation === 'monthly';
-    const showTimeseries = viewMode === 'timeseries' || viewMode === 'all';
-    const showComparison = (viewMode === 'comparison' || viewMode === 'all') && isComparable && isMonthly;
-    const showDifference = (viewMode === 'difference' || viewMode === 'all') && isComparable && isMonthly;
+    const showWalche = viewMode === 'walche';
+    const showTimeseries = !showWalche && (viewMode === 'timeseries' || viewMode === 'all');
+    const showComparison = !showWalche && (viewMode === 'comparison' || viewMode === 'all') && isComparable && isMonthly;
+    const showDifference = !showWalche && (viewMode === 'difference' || viewMode === 'all') && isComparable && isMonthly;
     const isHourly = aggregation === 'hourly';
-    const showHeatmap = (viewMode === 'heatmap' || viewMode === 'all') && isHourly;
+    const showHeatmap = !showWalche && (viewMode === 'heatmap' || viewMode === 'all') && isHourly;
 
     document.getElementById('chart-timeseries').style.display = showTimeseries ? 'block' : 'none';
     document.getElementById('chart-comparison').style.display = showComparison ? 'block' : 'none';
     document.getElementById('chart-difference').style.display = showDifference ? 'block' : 'none';
+    document.getElementById('chart-walche-overlay').style.display = showWalche ? 'block' : 'none';
+    document.getElementById('chart-walche-rmse').style.display = showWalche ? 'block' : 'none';
 
     const heatmapWrapper = document.getElementById('heatmap-wrapper');
     heatmapWrapper.style.display = showHeatmap ? 'block' : 'none';
@@ -228,6 +234,11 @@ class App {
           )
         );
       }
+    }
+
+    if (showWalche && this.walcheData) {
+      tasks.push(this.charts.renderWalcheOverlay('chart-walche-overlay', this.walcheData, this.currentStationData));
+      tasks.push(this.charts.renderWalcheRMSE('chart-walche-rmse', this.walcheData, this.currentStationData));
     }
 
     await Promise.all(tasks);

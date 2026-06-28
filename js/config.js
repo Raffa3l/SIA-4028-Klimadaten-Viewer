@@ -1,7 +1,13 @@
 const CONFIG = {
-  dataDir: 'Ressourcen',
+  dataDir: 'data',
 
   stations: {
+    ZUESTA: {
+      name: 'Zürich Stadt',
+      abbr2023: 'ZUESTA',
+      abbr2060: 'NABZUE',
+      folder: 'ZUESTA',
+    },
     KLO: {
       name: 'Zürich / Kloten',
       abbr2023: 'KLO',
@@ -20,17 +26,11 @@ const CONFIG = {
       abbr2060: 'SMA',
       folder: 'SMA',
     },
-    ZUESTA: {
-      name: 'Zürich Stadt',
-      abbr2023: 'ZUESTA',
-      abbr2060: 'NABZUE',
-      folder: 'ZUESTA',
-    },
   },
 
   scenarios: {
     DRY: { label: 'DRY (Durchschnittliche Monate)', color2023: '#1b4f72', color2060: '#c0392b' },
-    '1in10': { label: '1-in-10 (Warmer Sommer)', color2023: '#2e86c1', color2060: '#e74c3c' },
+    '1in10': { label: '1-in-10 (Warmer Sommer)', color2023: '#2e86c1', color2060: '#e67e22' },
   },
 
   parameterMapping: {

@@ -15,6 +15,7 @@ Interaktive Web-Applikation zur Visualisierung der stündlichen SIA 4028 Klimada
 - **Szenario-Vergleich**: Aktuelles Klima (2023) vs. zukünftiges Klima (2060 RCP8.5)
 - **Zwei Varianten**: DRY (durchschnittliche Monate) und 1-in-10 (warmer Sommer)
 - **Interaktive Charts**: Zoom, Pan, Hover-Tooltips, Export als PNG
+- **Messvergleich Walche**: Reale Aussentemperaturmessung (Jan–Jun 2026) vs. alle Klimaszenarien mit RMSE/MAE-Auswertung
 
 Der Quellcode in diesem Repository steht unter der [MIT-Lizenz](LICENSE).
 
@@ -32,6 +33,7 @@ Die verfügbaren Diagramme hängen von der gewählten Aggregation ab:
 - **Monatlicher Vergleich**: Balken pro Monat und Szenario (nur bei Monatsmittel)
 - **Differenz 2060 vs. 2023**: Monatliche Differenz zwischen Zukunft und Gegenwart (nur bei Monatsmittel, nur für vergleichbare Parameter)
 - **Heatmaps**: Stunde × Tag Matrix, eine pro aktivem Szenario (nur bei stündlicher Auflösung)
+- **Messvergleich Walche**: Unabhängig von Aggregation; zeigt Tagesmitten-Overlay (Jan–Jun) und RMSE/MAE-Balkendiagramm pro Szenario
 
 ## Datenquelle
 
@@ -88,18 +90,20 @@ SIA 4028/
 │   ├── data-loader.js      CSV-Laden und -Parsing
 │   ├── charts.js           Plotly-Diagrammkonfigurationen
 │   └── app.js              Hauptlogik der Applikation
-├── Ressourcen/             Klimadaten (CSV-Dateien)
-│   ├── KLO/                Zürich / Kloten
-│   ├── REH/                Zürich / Affoltern
-│   ├── SMA/                Zürich / Fluntern
-│   └── ZUESTA/             Zürich Stadt
+├── data/                   Klimadaten und Messdaten (CSV-Dateien)
+│   ├── KLO/               Zürich / Kloten (SIA 4028)
+│   ├── REH/               Zürich / Affoltern (SIA 4028)
+│   ├── SMA/               Zürich / Fluntern (SIA 4028)
+│   ├── ZUESTA/            Zürich Stadt (SIA 4028)
+│   └── WALCHE/            Aussentemperaturmessung Standort Walche (15-min-Werte)
+├── docs/                   Hintergrunddokumente und Referenzen
 ├── README.md
 └── CHANGELOG.md
 ```
 
 ## Datenformat
 
-### Dateien pro Station
+### SIA 4028 Klimadaten (Stationen KLO, REH, SMA, ZUESTA)
 
 | Datei | Beschreibung |
 |-------|-------------|
@@ -107,6 +111,16 @@ SIA 4028/
 | `XXX_2023_1in10-warmsummer.csv` | Aktuelles Klima, warmer Sommer |
 | `XXX_2060_RCP85_DRY.csv` | Zukünftiges Klima (RCP8.5), durchschnittliche Monate |
 | `XXX_2060_RCP85_1in10-warmsummer.csv` | Zukünftiges Klima (RCP8.5), warmer Sommer |
+
+Delimiter: `,` — Zeitstempel in Spalten `time.yy`, `time.mm`, `time.dd`, `time.hh`
+
+### Messdaten Walche
+
+| Datei | Beschreibung |
+|-------|-------------|
+| `Walche_MES01-Istwert_15m.csv` | Aussentemperatur (°C), 15-Minuten-Intervalle, Jan–Jun 2026 |
+
+Delimiter: `;` — Datum im Format `DD.MM.YYYY HH:MM:SS`, zwei Kopfzeilen (Name, Einheit)
 
 ### Verfügbare Parameter
 

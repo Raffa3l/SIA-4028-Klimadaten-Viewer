@@ -124,6 +124,54 @@ class DataLoader {
     return params;
   }
 
+  async loadWalcheData() {
+    const url = 'data/WALCHE/Walche_MES01-Istwert_15m.csv';
+    if (this.cache.has(url)) return this.cache.get(url);
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Walche-Datei nicht gefunden: ${url}`);
+    const text = await response.text();
+
+    const rawRows = [];
+    await new Promise((resolve) => {
+      Papa.parse(text, {
+        delimiter: ';',
+        skipEmptyLines: true,
+        complete: (results) => {
+          for (const row of results.data) {
+            const dateStr = (row[0] || '').replace(/"/g, '');
+            const m = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):\d{2}$/);
+            if (!m) continue;
+            const val = parseFloat(String(row[1]).replace(',', '.'));
+            if (isNaN(val)) continue;
+            rawRows.push({ dd: m[1], mm: m[2], hh: m[4], val });
+          }
+          resolve();
+        },
+      });
+    });
+
+    // Aggregate 15-min intervals to hourly means, normalize year to 2024 for x-axis alignment
+    const hourlyMap = new Map();
+    for (const { dd, mm, hh, val } of rawRows) {
+      const key = `2024-${mm}-${dd}T${hh}:00`;
+      if (!hourlyMap.has(key)) hourlyMap.set(key, []);
+      hourlyMap.get(key).push(val);
+    }
+
+    const hourly = Array.from(hourlyMap.entries())
+      .map(([ts, vals]) => ({
+        timestamp: ts,
+        date: ts.slice(0, 10),
+        month: parseInt(ts.slice(5, 7)),
+        value: vals.reduce((a, b) => a + b, 0) / vals.length,
+      }))
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+    this.cache.set(url, hourly);
+    return hourly;
+  }
+
   async detectAvailableStations() {
     const entries = Object.entries(CONFIG.stations);
     const results = await Promise.all(
