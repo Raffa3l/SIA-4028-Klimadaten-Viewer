@@ -5,7 +5,7 @@ class App {
     this.currentStationData = null;
     this.currentStation = null;
     this.availableParams = null;
-    this.walcheData = null;
+    this.globalMeasData = null;
     this.stationMeasurementData = null;
     this._loadId = 0;
   }
@@ -16,8 +16,8 @@ class App {
       await this.populateStations();
       this.bindEvents();
       const firstStation = document.getElementById('station-select').value;
-      // Load Walche data before station so it's available on the first updateCharts call
-      this.walcheData = await this.loader.loadWalcheData().catch(() => null);
+      // Load global measurements before station so they're available on the first updateCharts call
+      this.globalMeasData = await this.loader.loadGlobalMeasurements().catch(() => null);
       if (firstStation) await this.loadStation(firstStation);
     } catch (err) {
       this.showError('Fehler beim Laden der App: ' + err.message);
@@ -85,22 +85,20 @@ class App {
   }
 
   buildMeasurementCheckboxes() {
-    const measData = this.stationMeasurementData || this.walcheData;
+    const measData = this.stationMeasurementData || this.globalMeasData;
     const container = document.getElementById('measurement-checkboxes');
     container.innerHTML = '';
 
-    if (!measData || !this.currentStation) return;
+    if (!measData) return;
 
-    const years = [...new Set(measData.map((e) => e.year))].sort();
-    const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
-
-    years.forEach((year, idx) => {
-      const color = MEASUREMENT_YEAR_COLORS[idx % MEASUREMENT_YEAR_COLORS.length];
+    const pairs = this.charts._allMeasPairs(measData);
+    pairs.forEach((pair) => {
+      const color = MEASUREMENT_YEAR_COLORS[pair.colorIdx % MEASUREMENT_YEAR_COLORS.length];
       const label = document.createElement('label');
       label.innerHTML = `
-        <input type="checkbox" class="measurement-year-toggle" value="${year}" checked>
+        <input type="checkbox" class="measurement-year-toggle" value="${pair.key}" checked>
         <span class="color-dot" style="background: ${color}"></span>
-        ${measLabel} ${year}
+        ${pair.sourceLabel} ${pair.year}
       `;
       container.appendChild(label);
     });
@@ -110,10 +108,8 @@ class App {
     });
   }
 
-  getActiveYears() {
-    return [...document.querySelectorAll('.measurement-year-toggle:checked')].map((cb) =>
-      parseInt(cb.value)
-    );
+  getActiveMeasKeys() {
+    return [...document.querySelectorAll('.measurement-year-toggle:checked')].map((cb) => cb.value);
   }
 
   async loadStation(stationKey) {
@@ -217,12 +213,12 @@ class App {
       ? activeScenarios
       : activeScenarios.filter((s) => s.includes('2023'));
 
-    const hasMeasurements = paramKey === 'temp' && !!(this.stationMeasurementData || this.walcheData);
+    const hasMeasurements = paramKey === 'temp' && !!(this.stationMeasurementData || this.globalMeasData);
     const measHeading = document.getElementById('measurements-heading');
     const measContainer = document.getElementById('measurement-checkboxes');
     if (measHeading) measHeading.style.display = hasMeasurements ? '' : 'none';
     if (measContainer) measContainer.style.display = hasMeasurements ? '' : 'none';
-    const activeYears = hasMeasurements ? this.getActiveYears() : [];
+    const activeMeasKeys = hasMeasurements ? this.getActiveMeasKeys() : [];
 
     const isMonthly = aggregation === 'monthly';
     const showWalche = viewMode === 'walche';
@@ -247,8 +243,7 @@ class App {
 
     const tasks = [];
 
-    const measData = hasMeasurements ? (this.stationMeasurementData || this.walcheData) : null;
-    const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
+    const measData = hasMeasurements ? (this.stationMeasurementData || this.globalMeasData) : null;
 
     if (showTimeseries) {
       tasks.push(
@@ -259,8 +254,7 @@ class App {
           scenariosToUse,
           aggregation,
           measData,
-          measLabel,
-          activeYears
+          activeMeasKeys
         )
       );
     }
@@ -273,8 +267,7 @@ class App {
           paramKey,
           scenariosToUse,
           measData,
-          measLabel,
-          activeYears
+          activeMeasKeys
         )
       );
     }
@@ -307,11 +300,10 @@ class App {
     }
 
     if (showWalche) {
-      const walcheMeasData = this.stationMeasurementData || this.walcheData;
-      const walcheMeasLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
+      const walcheMeasData = this.stationMeasurementData || this.globalMeasData;
       if (walcheMeasData) {
-        tasks.push(this.charts.renderWalcheOverlay('chart-walche-overlay', walcheMeasData, walcheMeasLabel, this.currentStationData, activeYears));
-        tasks.push(this.charts.renderWalcheRMSE('chart-walche-rmse', walcheMeasData, walcheMeasLabel, this.currentStationData, activeYears));
+        tasks.push(this.charts.renderWalcheOverlay('chart-walche-overlay', walcheMeasData, this.currentStationData, activeMeasKeys));
+        tasks.push(this.charts.renderWalcheRMSE('chart-walche-rmse', walcheMeasData, this.currentStationData, activeMeasKeys));
       } else {
         document.getElementById('chart-walche-overlay').style.display = 'none';
         document.getElementById('chart-walche-rmse').style.display = 'none';

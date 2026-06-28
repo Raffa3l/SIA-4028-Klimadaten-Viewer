@@ -64,6 +64,25 @@ const CONFIG = {
     emissivity:  { label: 'Bodenemissivität',                     unit: '%',     group: 'Oberfläche' },
   },
 
+  globalMeasurements: [
+    {
+      key: 'walche',
+      label: 'Messung Walche',
+      files: [
+        'WALCHE/Walche_MES01-Istwert_15m-2025.csv',
+        'WALCHE/Walche_MES01-Istwert_15m-2026-Jan-Jun.csv',
+      ],
+    },
+    {
+      key: 'urania',
+      label: 'Messung Urania',
+      files: [
+        'URANIA/URANIA_MES01-Istwert_15m-2025.csv',
+        'URANIA/URANIA_MES01-Istwert_15m-2026-Jan-Jun.csv',
+      ],
+    },
+  ],
+
   filePatterns: {
     dry2023:    (abbr) => `${abbr}_2023_DRY.csv`,
     warm2023:   (abbr) => `${abbr}_2023_1in10-warmsummer.csv`,

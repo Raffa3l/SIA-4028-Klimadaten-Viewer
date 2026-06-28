@@ -123,7 +123,7 @@ class DataLoader {
     return params;
   }
 
-  async _loadMeasurementFiles(urls) {
+  async _loadMeasurementFiles(urls, source, sourceLabel) {
     // Key uses the real year so readings from different years are kept separate
     const hourlyMap = new Map();
 
@@ -169,23 +169,27 @@ class DataLoader {
           date: normTs.slice(0, 10),
           month: parseInt(normTs.slice(5, 7)),
           value: vals.reduce((a, b) => a + b, 0) / vals.length,
+          source,
+          sourceLabel,
         };
       })
       .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
 
-  async loadWalcheData() {
-    const cacheKey = '__walche__';
+  async loadGlobalMeasurements() {
+    const cacheKey = '__global__';
     if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
 
-    const data = await this._loadMeasurementFiles([
-      `${this.dataDir}/WALCHE/Walche_MES01-Istwert_15m-2025.csv`,
-      `${this.dataDir}/WALCHE/Walche_MES01-Istwert_15m-2026-Jan-Jun.csv`,
-    ]);
+    const allEntries = [];
+    for (const gm of CONFIG.globalMeasurements) {
+      const urls = gm.files.map((f) => `${this.dataDir}/${f}`);
+      const entries = await this._loadMeasurementFiles(urls, gm.key, gm.label);
+      allEntries.push(...entries);
+    }
 
-    if (data.length === 0) throw new Error('Keine Walche-Messdaten gefunden');
-    this.cache.set(cacheKey, data);
-    return data;
+    if (allEntries.length === 0) return null;
+    this.cache.set(cacheKey, allEntries);
+    return allEntries;
   }
 
   async loadStationMeasurements(stationKey) {
@@ -196,7 +200,8 @@ class DataLoader {
     if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
 
     const urls = station.measurementFiles.map((f) => `${this.dataDir}/${station.folder}/${f}`);
-    const data = await this._loadMeasurementFiles(urls);
+    const sourceLabel = station.measurementLabel || stationKey;
+    const data = await this._loadMeasurementFiles(urls, stationKey.toLowerCase(), sourceLabel);
     const result = data.length > 0 ? data : null;
     this.cache.set(cacheKey, result);
     return result;

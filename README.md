@@ -15,9 +15,18 @@ Interaktive Web-Applikation zur Visualisierung der stündlichen SIA 4028 Klimada
 - **Szenario-Vergleich**: Aktuelles Klima (2023) vs. zukünftiges Klima (2060 RCP8.5)
 - **Zwei Varianten**: DRY (durchschnittliche Monate) und 1-in-10 (warmer Sommer)
 - **Interaktive Charts**: Zoom, Pan, Hover-Tooltips, Export als PNG
-- **Messvergleich**: Reale Aussentemperaturmessungen (2025–2026) vs. alle Klimaszenarien mit RMSE/MAE-Auswertung — Walche-Gebäude für alle Stationen, SMA Fluntern für Station SMA
+- **Messungen ein-/ausblenden**: Für den Parameter Lufttemperatur erscheint in der Seitenleiste ein eigener Abschnitt «Messungen» mit einer Checkbox pro Messquelle und Jahr — aktive Quellen werden in allen relevanten Diagrammen als gepunktete Kurven eingeblendet
+- **Messvergleich**: Reale Aussentemperaturmessungen (2025–2026) vs. alle Klimaszenarien mit RMSE/MAE-Auswertung; globale Quellen: Walche Zürich Stadt und Urania; stationsspezifisch: SMA Fluntern für Station SMA
 
-Der Quellcode in diesem Repository steht unter der [MIT-Lizenz](LICENSE).
+### Messquellen
+
+| Quelle | Typ | Stationen |
+|--------|-----|-----------|
+| Messung Walche | Global (immer verfügbar) | alle |
+| Messung Urania | Global (immer verfügbar) | alle |
+| Messung SMA Fluntern | Stationsspezifisch | nur SMA |
+
+Bei Auswahl der Station SMA werden die SMA-Fluntern-Messungen anstelle der globalen Quellen verwendet.
 
 ### Diagrammtypen und Aggregation
 
@@ -29,11 +38,11 @@ Die verfügbaren Diagramme hängen von der gewählten Aggregation ab:
 | **Tagesmittel** | Linien (365 Werte) | — | — | — |
 | **Monatsmittel** | Linien + Marker (12 Werte) | Balkendiagramm | Balkendiagramm | — |
 
-- **Zeitreihe**: Immer sichtbar, zeigt den Jahresverlauf aller aktiven Szenarien; bei Parameter Lufttemperatur zusätzlich eine gepunktete Kurve pro Messjahr (2025, 2026)
-- **Monatlicher Vergleich**: Balken pro Monat und Szenario (nur bei Monatsmittel)
+- **Zeitreihe**: Immer sichtbar, zeigt den Jahresverlauf aller aktiven Szenarien; bei Parameter Lufttemperatur zusätzlich gepunktete Kurven für alle aktiven Messquellen/Jahre
+- **Monatlicher Vergleich**: Balken pro Monat und Szenario (nur bei Monatsmittel); bei Lufttemperatur auch Balken für aktive Messquellen
 - **Differenz 2060 vs. 2023**: Monatliche Differenz zwischen Zukunft und Gegenwart (nur bei Monatsmittel, nur für vergleichbare Parameter)
 - **Heatmaps**: Stunde × Tag Matrix, eine pro aktivem Szenario (nur bei stündlicher Auflösung)
-- **Messvergleich**: Unabhängig von Aggregation; zeigt Tagesmitten-Overlay (eine Kurve pro Messjahr, normiert auf 2024) und RMSE/MAE-Balkendiagramm pro Szenario und Messjahr
+- **Messvergleich**: Unabhängig von Aggregation; zeigt Tagesmitten-Overlay (eine Kurve pro aktiver Messquelle/Jahr, normiert auf 2024) und RMSE/MAE-Balkendiagramm pro Szenario und Messquelle/Jahr
 
 > **Hinweis:** Beim Wechsel auf «Monatsvergleich» oder «Differenz 2060 vs. 2023» wird die Aggregation automatisch auf *Monatsmittel* umgestellt. Beim Wechsel auf «Heatmap» wird automatisch auf *Stündlich* umgestellt.
 
@@ -110,16 +119,17 @@ SIA 4028/
 ├── css/
 │   └── styles.css          Styling (MeteoSchweiz-inspiriert)
 ├── js/
-│   ├── config.js           Stations- und Parameterkonfiguration
+│   ├── config.js           Stations-, Parameter- und Messkonfiguration
 │   ├── data-loader.js      CSV-Laden und -Parsing
 │   ├── charts.js           Plotly-Diagrammkonfigurationen
 │   └── app.js              Hauptlogik der Applikation
 ├── data/                   Klimadaten und Messdaten (CSV-Dateien)
 │   ├── KLO/                Zürich / Kloten (SIA 4028)
 │   ├── REH/                Zürich / Affoltern (SIA 4028)
-│   ├── SMA/                Zürich / Fluntern (SIA 4028)
+│   ├── SMA/                Zürich / Fluntern (SIA 4028 + Messungen MeteoSchweiz)
 │   ├── ZUESTA/             Zürich Stadt (SIA 4028)
-│   └── WALCHE/             Aussentemperaturmessung Walche Zürich Stadt
+│   ├── WALCHE/             Aussentemperaturmessung Walche Zürich Stadt
+│   └── URANIA/             Aussentemperaturmessung Urania Zürich
 ├── docs/                   Hintergrunddokumente und Referenzen
 ├── README.md
 └── CHANGELOG.md
@@ -142,10 +152,15 @@ Delimiter: `,` — Zeitstempel in Spalten `time.yy`, `time.mm`, `time.dd`, `time
 
 | Datei | Beschreibung |
 |-------|-------------|
-| `Walche_MES01-Istwert_15m-2025.csv` | Aussentemperatur Walche (°C), 15-Min-Intervalle, ab Feb. 2025 |
-| `Walche_MES01-Istwert_15m-2026-Jan-Jun.csv` | Aussentemperatur Walche (°C), 15-Min-Intervalle, Jan–Jun 2026 |
+| `Walche_MES01-Istwert_15m-2025.csv` | Aussentemperatur (°C), 15-Min-Intervalle, 2025 |
+| `Walche_MES01-Istwert_15m-2026-Jan-Jun.csv` | Aussentemperatur (°C), 15-Min-Intervalle, Jan–Jun 2026 |
 
-Delimiter: `;` — Datum im Format `DD.MM.YYYY HH:MM:SS`, Kopfzeilen werden automatisch übersprungen.
+### Messdaten Urania Zürich
+
+| Datei | Beschreibung |
+|-------|-------------|
+| `URANIA_MES01-Istwert_15m-2025.csv` | Aussentemperatur (°C), 15-Min-Intervalle, 2025 |
+| `URANIA_MES01-Istwert_15m-2026-Jan-Jun.csv` | Aussentemperatur (°C), 15-Min-Intervalle, Jan–Jun 2026 |
 
 ### Messdaten SMA Fluntern (MeteoSchweiz)
 
@@ -154,9 +169,9 @@ Delimiter: `;` — Datum im Format `DD.MM.YYYY HH:MM:SS`, Kopfzeilen werden auto
 | `SMA_clean_15m_2025.csv` | Aussentemperatur SMA (°C), 15-Min-Intervalle, 2025 |
 | `SMA_clean_15m-2026-Jan-Jun.csv` | Aussentemperatur SMA (°C), 15-Min-Intervalle, Jan–Jun 2026 |
 
-Delimiter: `;` — gleiches Format wie Walche-Messdaten. Wird im Messvergleich automatisch verwendet, wenn die Station SMA ausgewählt ist.
+Alle Messdaten verwenden Delimiter `;`, Datum im Format `"DD.MM.YYYY HH:MM:SS"`, Kopfzeilen werden automatisch übersprungen. Wird die Station SMA ausgewählt, ersetzt diese Messquelle die globalen Quellen (Walche, Urania).
 
-> **Normierung auf 2024**: Alle Messdaten (Walche, SMA) und SIA 4028 Klimadaten werden auf das Jahr 2024 normiert, damit sie auf derselben Zeitachse verglichen werden können. Die Messwerte stammen aus 2025–2026; die Normierung ist rein eine Darstellungsmassnahme für die X-Achse.
+> **Normierung auf 2024**: Alle Messdaten und SIA 4028 Klimadaten werden auf das Jahr 2024 normiert, damit sie auf derselben Zeitachse verglichen werden können. Die Messwerte stammen aus 2025–2026; die Normierung ist rein eine Darstellungsmassnahme für die X-Achse.
 
 ### Verfügbare Parameter
 

@@ -1,5 +1,5 @@
-// Colors for measured data traces, cycled by year (oldest → newest)
-const MEASUREMENT_YEAR_COLORS = ['#1a1a2e', '#64748b', '#374151'];
+// Colors for measured data traces — indexed by position in the ordered (source, year) pair list
+const MEASUREMENT_YEAR_COLORS = ['#1a1a2e', '#64748b', '#6d28d9', '#a78bfa', '#0369a1', '#38bdf8'];
 
 const CHART_COLORS = {
   dry2023:  'rgb(27, 79, 114)',
@@ -164,51 +164,74 @@ class ChartManager {
     };
   }
 
-  _measurementTraces(measData, measLabel, aggregation, activeYears = null) {
-    const byYear = new Map();
-    for (const entry of measData) {
-      if (!byYear.has(entry.year)) byYear.set(entry.year, []);
-      byYear.get(entry.year).push(entry);
+  _allMeasPairs(measData) {
+    const pairs = [];
+    const seen = new Set();
+    const globalKeys = new Set(CONFIG.globalMeasurements.map((gm) => gm.key));
+
+    // Global sources in CONFIG order, then by year
+    for (const gm of CONFIG.globalMeasurements) {
+      const years = [...new Set(measData.filter((e) => e.source === gm.key).map((e) => e.year))].sort();
+      for (const year of years) {
+        const key = `${gm.key}||${year}`;
+        if (!seen.has(key)) { pairs.push({ key, sourceLabel: gm.label, year, source: gm.key }); seen.add(key); }
+      }
     }
 
-    const allYears = [...byYear.keys()].sort();
+    // Station-specific sources after global, sorted
+    const stationKeys = [...new Set(
+      measData.filter((e) => !globalKeys.has(e.source)).map((e) => `${e.source}||${e.year}`)
+    )].sort();
+    for (const k of stationKeys) {
+      if (!seen.has(k)) {
+        const [src, yearStr] = k.split('||');
+        const entry = measData.find((e) => e.source === src);
+        pairs.push({ key: k, sourceLabel: entry?.sourceLabel || src, year: parseInt(yearStr), source: src });
+        seen.add(k);
+      }
+    }
+
+    return pairs.map((p, idx) => ({ ...p, colorIdx: idx }));
+  }
+
+  _measurementTraces(measData, aggregation, activeKeys = null) {
+    const pairs = this._allMeasPairs(measData);
     const traces = [];
-    allYears.forEach((year, idx) => {
-      if (activeYears && !activeYears.includes(year)) return;
-      const yearData = byYear.get(year);
-      const color = MEASUREMENT_YEAR_COLORS[idx % MEASUREMENT_YEAR_COLORS.length];
+
+    for (const pair of pairs) {
+      if (activeKeys && !activeKeys.includes(pair.key)) continue;
+
+      const color = MEASUREMENT_YEAR_COLORS[pair.colorIdx % MEASUREMENT_YEAR_COLORS.length];
+      const pairData = measData.filter((e) => e.source === pair.source && e.year === pair.year);
 
       let x, y;
       if (aggregation === 'hourly') {
-        x = yearData.map((e) => e.timestamp);
-        y = yearData.map((e) => e.value);
+        x = pairData.map((e) => e.timestamp);
+        y = pairData.map((e) => e.value);
       } else if (aggregation === 'daily') {
-        const d = this._dailyMeansFromHourly(yearData);
-        x = d.dates;
-        y = d.means;
+        const d = this._dailyMeansFromHourly(pairData);
+        x = d.dates; y = d.means;
       } else {
-        const d = this._monthlyMeansFromHourly(yearData);
-        x = d.dates;
-        y = d.means;
+        const d = this._monthlyMeansFromHourly(pairData);
+        x = d.dates; y = d.means;
       }
 
       const trace = {
-        x,
-        y,
+        x, y,
         type: aggregation === 'hourly' ? 'scattergl' : 'scatter',
         mode: aggregation === 'monthly' ? 'lines+markers' : 'lines',
-        name: `${measLabel} ${year}`,
+        name: `${pair.sourceLabel} ${pair.year}`,
         line: { color, width: aggregation === 'hourly' ? 1 : 2, dash: 'dot' },
         hovertemplate: '%{y:.1f} °C<extra></extra>',
       };
       if (aggregation === 'monthly') trace.marker = { size: 6, color };
       traces.push(trace);
-    });
+    }
 
     return traces;
   }
 
-  async renderTimeseries(containerId, stationData, paramKey, activeScenarios, aggregation, measData = null, measLabel = '', activeYears = null) {
+  async renderTimeseries(containerId, stationData, paramKey, activeScenarios, aggregation, measData = null, activeKeys = null) {
     const paramInfo =
       CONFIG.parameterMapping[paramKey] || CONFIG.parametersOnly2023[paramKey];
     if (!paramInfo) return;
@@ -221,7 +244,7 @@ class ChartManager {
 
     // Append measured data traces (temperature only)
     if (measData && paramKey === 'temp') {
-      traces.push(...this._measurementTraces(measData, measLabel, aggregation, activeYears));
+      traces.push(...this._measurementTraces(measData, aggregation, activeKeys));
     }
 
     const layout = this.buildLayout(paramInfo, title);
@@ -246,7 +269,7 @@ class ChartManager {
     return sums.map((s, i) => counts[i] > 0 ? (useSum ? s : s / counts[i]) : 0);
   }
 
-  async renderComparisonChart(containerId, stationData, paramKey, activeScenarios, measData = null, measLabel = '', activeYears = null) {
+  async renderComparisonChart(containerId, stationData, paramKey, activeScenarios, measData = null, activeKeys = null) {
     const paramInfo = CONFIG.parameterMapping[paramKey];
     if (!paramInfo) return;
 
@@ -274,29 +297,23 @@ class ChartManager {
 
     // Add measurement bars for temperature
     if (paramKey === 'temp' && measData) {
-      const byYear = new Map();
-      for (const entry of measData) {
-        if (!byYear.has(entry.year)) byYear.set(entry.year, []);
-        byYear.get(entry.year).push(entry);
-      }
-      const allYears = [...byYear.keys()].sort();
-      allYears.forEach((year, idx) => {
-        if (activeYears && !activeYears.includes(year)) return;
-        const color = MEASUREMENT_YEAR_COLORS[idx % MEASUREMENT_YEAR_COLORS.length];
-        const { dates, means } = this._monthlyMeansFromHourly(byYear.get(year));
+      const pairs = this._allMeasPairs(measData);
+      for (const pair of pairs) {
+        if (activeKeys && !activeKeys.includes(pair.key)) continue;
+        const color = MEASUREMENT_YEAR_COLORS[pair.colorIdx % MEASUREMENT_YEAR_COLORS.length];
+        const pairData = measData.filter((e) => e.source === pair.source && e.year === pair.year);
+        const { dates, means } = this._monthlyMeansFromHourly(pairData);
         const yValues = new Array(12).fill(null);
-        dates.forEach((d, i) => {
-          yValues[parseInt(d.substring(5, 7)) - 1] = means[i];
-        });
+        dates.forEach((d, i) => { yValues[parseInt(d.substring(5, 7)) - 1] = means[i]; });
         traces.push({
           x: CONFIG.months,
           y: yValues,
           type: 'bar',
-          name: `${measLabel} ${year}`,
+          name: `${pair.sourceLabel} ${pair.year}`,
           marker: { color },
           hovertemplate: '%{y:.1f}<extra></extra>',
         });
-      });
+      }
     }
 
     const layout = {
@@ -444,10 +461,15 @@ class ChartManager {
     return abs.length > 0 ? abs.reduce((a, b) => a + b, 0) / abs.length : NaN;
   }
 
-  async renderWalcheOverlay(containerId, walcheData, measurementLabel, stationData, activeYears = null) {
+  async renderWalcheOverlay(containerId, measData, stationData, activeKeys = null) {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
-    const walcheMonths = new Set(walcheData.map((r) => r.month));
+
+    // Filter months to those covered by any active measurement source
+    const activeMeasData = activeKeys && activeKeys.length > 0
+      ? measData.filter((e) => activeKeys.includes(`${e.source}||${e.year}`))
+      : measData;
+    const measMonths = activeMeasData.length > 0 ? new Set(activeMeasData.map((r) => r.month)) : null;
 
     const traces = [];
 
@@ -455,7 +477,7 @@ class ChartManager {
       const data = stationData[scenario];
       if (!data) continue;
       const is2060 = scenario.includes('2060');
-      const daily = this._dailyMeansFromClimate(data, 'temp', is2060, walcheMonths);
+      const daily = this._dailyMeansFromClimate(data, 'temp', is2060, measMonths);
       if (!daily) continue;
 
       traces.push({
@@ -470,13 +492,13 @@ class ChartManager {
       });
     }
 
-    // One measured trace per year — grouped by actual calendar year
-    traces.push(...this._measurementTraces(walcheData, measurementLabel, 'daily', activeYears));
+    // One measured trace per (source, year) pair
+    traces.push(...this._measurementTraces(measData, 'daily', activeKeys));
 
     const layout = {
       ...METEO_LAYOUT,
       title: {
-        text: `Lufttemperatur Tagesmittel: ${measurementLabel} vs. Klimadaten ${stationName}`,
+        text: `Lufttemperatur Tagesmittel: Messwerte vs. Klimadaten ${stationName}`,
         font: { size: 16, weight: 'bold' },
         x: 0.01,
         xanchor: 'left',
@@ -499,28 +521,21 @@ class ChartManager {
     });
   }
 
-  async renderWalcheRMSE(containerId, walcheData, measurementLabel, stationData, activeYears = null) {
+  async renderWalcheRMSE(containerId, measData, stationData, activeKeys = null) {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
 
-    // Group by real year — avoids cross-year averaging when computing daily means
-    const byYear = new Map();
-    for (const entry of walcheData) {
-      if (!byYear.has(entry.year)) byYear.set(entry.year, []);
-      byYear.get(entry.year).push(entry);
-    }
-    const years = [...byYear.keys()].sort();
-
+    const pairs = this._allMeasPairs(measData);
+    const markerSymbols = ['circle', 'diamond', 'square', 'cross', 'triangle-up'];
     const traces = [];
 
-    years.forEach((year, yearIdx) => {
-      if (activeYears && !activeYears.includes(year)) return;
-      const yearData = byYear.get(year);
-      const yearMonths = new Set(yearData.map((r) => r.month));
-      const yearDaily = this._dailyMeansFromHourly(yearData);
-      const measColor = MEASUREMENT_YEAR_COLORS[yearIdx % MEASUREMENT_YEAR_COLORS.length];
-      // First year shown slightly transparent so both years are distinguishable
-      const barOpacity = years.length > 1 && yearIdx === 0 ? 0.55 : 1.0;
+    pairs.forEach((pair) => {
+      if (activeKeys && !activeKeys.includes(pair.key)) return;
+      const pairData = measData.filter((e) => e.source === pair.source && e.year === pair.year);
+      const pairMonths = new Set(pairData.map((r) => r.month));
+      const pairDaily = this._dailyMeansFromHourly(pairData);
+      const measColor = MEASUREMENT_YEAR_COLORS[pair.colorIdx % MEASUREMENT_YEAR_COLORS.length];
+      const traceName = `${pair.sourceLabel} ${pair.year}`;
 
       const labels = [];
       const rmseVals = [];
@@ -531,12 +546,12 @@ class ChartManager {
         const data = stationData[scenario];
         if (!data) continue;
         const is2060 = scenario.includes('2060');
-        const daily = this._dailyMeansFromClimate(data, 'temp', is2060, yearMonths);
+        const daily = this._dailyMeansFromClimate(data, 'temp', is2060, pairMonths);
         if (!daily) continue;
 
         labels.push(SCENARIO_LABELS[scenario]);
-        rmseVals.push(this._rmse(yearDaily.dates, yearDaily.means, daily.dates, daily.means));
-        maeVals.push(this._mae(yearDaily.dates, yearDaily.means, daily.dates, daily.means));
+        rmseVals.push(this._rmse(pairDaily.dates, pairDaily.means, daily.dates, daily.means));
+        maeVals.push(this._mae(pairDaily.dates, pairDaily.means, daily.dates, daily.means));
         barColors.push(CHART_COLORS[scenario]);
       }
 
@@ -544,11 +559,11 @@ class ChartManager {
         x: labels,
         y: rmseVals,
         type: 'bar',
-        name: `RMSE ${year}`,
-        marker: { color: barColors, opacity: barOpacity },
+        name: `RMSE ${traceName}`,
+        marker: { color: barColors },
         text: rmseVals.map((v) => (Number.isFinite(v) ? `${v.toFixed(2)} °C` : '')),
         textposition: 'outside',
-        hovertemplate: `RMSE ${year}: %{y:.2f} °C<extra></extra>`,
+        hovertemplate: `RMSE ${traceName}: %{y:.2f} °C<extra></extra>`,
       });
 
       traces.push({
@@ -556,9 +571,9 @@ class ChartManager {
         y: maeVals,
         type: 'scatter',
         mode: 'markers',
-        name: `MAE ${year}`,
-        marker: { color: measColor, size: 11, symbol: yearIdx === 0 ? 'circle' : 'diamond' },
-        hovertemplate: `MAE ${year}: %{y:.2f} °C<extra></extra>`,
+        name: `MAE ${traceName}`,
+        marker: { color: measColor, size: 11, symbol: markerSymbols[pair.colorIdx % markerSymbols.length] },
+        hovertemplate: `MAE ${traceName}: %{y:.2f} °C<extra></extra>`,
       });
     });
 
@@ -569,7 +584,7 @@ class ChartManager {
     const layout = {
       ...METEO_LAYOUT,
       title: {
-        text: `Abweichung vom Messwert (${measurementLabel}) — ${stationName} (Tagesmittel)`,
+        text: `Abweichung von den Messwerten — ${stationName} (Tagesmittel)`,
         font: { size: 16, weight: 'bold' },
         x: 0.01,
         xanchor: 'left',

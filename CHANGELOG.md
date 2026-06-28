@@ -2,9 +2,30 @@
 
 Alle wesentlichen Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [1.4.0] — 2026-06-28
+
+### Hinzugefügt
+- **Urania als zweite globale Messquelle**: Messdaten `URANIA_MES01-Istwert_15m-2025.csv` und `URANIA_MES01-Istwert_15m-2026-Jan-Jun.csv` (bis 28.6.2026) ergänzen den Messvergleich neben Walche
+- **`CONFIG.globalMeasurements`-Array**: Neue Konfigurationsstruktur für beliebig viele globale Messquellen (je `key`, `label`, `files`); Walche und Urania sind die ersten Einträge — weitere Quellen können hier ergänzt werden
+- **`DataLoader.loadGlobalMeasurements()`**: Löst `loadWalcheData()` ab; lädt alle in `CONFIG.globalMeasurements` konfigurierten Quellen sequenziell und kombiniert die Einträge in einem gemeinsamen Array
+- **`ChartManager._allMeasPairs(measData)`**: Neue Hilfsmethode; gibt eine geordnete Liste aller `{key, source, sourceLabel, year, colorIdx}`-Paare zurück — globale Quellen in CONFIG-Reihenfolge (Walche vor Urania), stationsspezifische danach, je aufsteigend nach Jahr; bildet die Grundlage für stabile Farbzuordnungen
+- **Messungen-Checkboxen in der Seitenleiste**: Neuer Abschnitt «Messungen» unterhalb der Szenarien; erscheint nur bei Parameter Lufttemperatur; zeigt eine Checkbox pro `(Quelle, Jahr)`-Paar mit Farbpunkt — aktive Kombinationen werden in allen relevanten Diagrammen dargestellt
+- **Messdaten im Monatsvergleich**: `renderComparisonChart` ergänzt bei Lufttemperatur die Klimaszenarien-Balken um Messdaten-Balken (Monatsmittel) pro aktiver Quelle/Jahr
+
+### Geändert
+- `DataLoader._loadMeasurementFiles(urls, source, sourceLabel)`: Neue Parameter; jeder Dateneintrag enthält jetzt die Felder `source` (Config-Schlüssel, z. B. `'walche'`) und `sourceLabel` (Anzeigebezeichnung)
+- `App.globalMeasData` ersetzt `App.walcheData`; `App.getActiveMeasKeys()` ersetzt `getActiveYears()` und gibt zusammengesetzte Schlüssel im Format `"source||year"` zurück
+- `ChartManager._measurementTraces(measData, aggregation, activeKeys)`: Signatur vereinfacht (kein `measLabel` mehr, da in Einträgen enthalten); iteriert über `_allMeasPairs` statt über rohe Jahres-Map; der Farbindex basiert auf `pair.colorIdx` und bleibt stabil, auch wenn einzelne Quellen/Jahre ausgeblendet werden
+- `renderTimeseries`, `renderComparisonChart`: Parameter `measLabel` entfernt (Bezeichnung kommt aus den Einträgen)
+- `renderWalcheOverlay`, `renderWalcheRMSE`: Parameter `measurementLabel` entfernt; Diagrammtitel lauten neu «Messwerte vs. Klimadaten» bzw. «Abweichung von den Messwerten»; Monatsfilterung basiert auf den aktuell aktiven Einträgen
+- `MEASUREMENT_YEAR_COLORS` von 3 auf 6 Farben erweitert: Walche erhält Navy/Slate (`#1a1a2e`, `#64748b`), Urania Lila (`#6d28d9`, `#a78bfa`); Farbzuordnung bleibt über Config-Reihenfolge stabil
+- `renderWalcheRMSE` iteriert nun über `_allMeasPairs` statt `byYear`; Balken-Opazität und Symbol-Zuordnung basieren auf `pair.colorIdx`
+
 ## [1.3.0] — 2026-06-28
 
 ### Hinzugefügt
+- **Messungen-Checkboxen pro Jahr**: Seitenleiste zeigt unterhalb der Szenarien einen neuen Abschnitt «Messungen» mit einer Checkbox pro Messjahr (Farbpunkt entspricht der Kurvenfarbe im Diagramm); ersetzt die bisherige statische Messquellen-Anzeige
+- Messdaten im Monatsvergleich: Für den Parameter Lufttemperatur werden im Monatsvergleich-Diagramm Messdaten-Balken (Monatsmittel pro Jahr) neben den Klimaszenarien-Balken eingeblendet
 - SMA-Messdatenvergleich: Station SMA lädt eigene MeteoSchweiz-Messungen (`SMA_clean_15m_2025.csv`, `SMA_clean_15m-2026-Jan-Jun.csv`) statt Walche-Daten für den Messvergleich
 - `DataLoader.loadStationMeasurements()`: generische Methode für stationsspezifische Messdateien (konfigurierbar via `measurementFiles` / `measurementLabel` in `CONFIG.stations`)
 - `DataLoader._loadMeasurementFiles()`: gemeinsame Ladelogik für alle Messdaten-CSVs (mehrere Dateien, beliebig viele Kopfzeilen)
@@ -14,7 +35,6 @@ Alle wesentlichen Änderungen an diesem Projekt werden in dieser Datei dokumenti
 - RMSE/MAE-Erklärung im README mit Formeln und Interpretation
 - Eine Kurve pro Messjahr: Messdaten in Overlay- und Zeitreihen-Diagramm werden nach Kalenderjahr getrennt dargestellt (separate gepunktete Linien für 2025 und 2026), umgesetzt via `ChartManager._measurementTraces()`
 - Messdaten in Zeitreihe: Für den Parameter Lufttemperatur werden im Zeitreihen-Diagramm zusätzlich die Messdaten eingeblendet (gepunktete Linie je Messjahr)
-- Sidebar-Messquellenanzeige: Unterhalb der Szenarien-Legende wird dynamisch die aktive Messquelle (Walche oder SMA) angezeigt; bei Parametern ohne Messdatenvergleich ausgeblendet
 - RMSE-Diagramm pro Messjahr: RMSE und MAE werden separat für 2025 und 2026 berechnet und als gruppierte Balken dargestellt — vermeidet fehlerhafte jahresübergreifende Mittelung
 
 ### Geändert
