@@ -6,6 +6,7 @@ class App {
     this.currentStation = null;
     this.availableParams = null;
     this.walcheData = null;
+    this.stationMeasurementData = null;
     this._loadId = 0;
   }
 
@@ -15,9 +16,9 @@ class App {
       await this.populateStations();
       this.bindEvents();
       const firstStation = document.getElementById('station-select').value;
-      const walchePromise = this.loader.loadWalcheData().then((d) => { this.walcheData = d; }).catch(() => {});
+      // Load Walche data before station so it's available on the first updateCharts call
+      this.walcheData = await this.loader.loadWalcheData().catch(() => null);
       if (firstStation) await this.loadStation(firstStation);
-      await walchePromise;
     } catch (err) {
       this.showError('Fehler beim Laden der App: ' + err.message);
     }
@@ -55,10 +56,26 @@ class App {
     });
 
     document.getElementById('aggregation-select').addEventListener('change', () => {
+      const agg = document.getElementById('aggregation-select').value;
+      const vmSelect = document.getElementById('view-mode');
+      const vm = vmSelect.value;
+      // Reset incompatible view modes to avoid empty page
+      if ((vm === 'comparison' || vm === 'difference') && agg !== 'monthly') {
+        vmSelect.value = 'all';
+      } else if (vm === 'heatmap' && agg !== 'hourly') {
+        vmSelect.value = 'all';
+      }
       this.updateCharts();
     });
 
     document.getElementById('view-mode').addEventListener('change', () => {
+      const vm = document.getElementById('view-mode').value;
+      const aggSelect = document.getElementById('aggregation-select');
+      if ((vm === 'comparison' || vm === 'difference') && aggSelect.value !== 'monthly') {
+        aggSelect.value = 'monthly';
+      } else if (vm === 'heatmap' && aggSelect.value !== 'hourly') {
+        aggSelect.value = 'hourly';
+      }
       this.updateCharts();
     });
 
@@ -73,9 +90,13 @@ class App {
     this.currentStation = stationKey;
 
     try {
-      const data = await this.loader.loadStationData(stationKey);
+      const [data, measData] = await Promise.all([
+        this.loader.loadStationData(stationKey),
+        this.loader.loadStationMeasurements(stationKey).catch(() => null),
+      ]);
       if (loadId !== this._loadId) return;
       this.currentStationData = data;
+      this.stationMeasurementData = measData;
       this.availableParams = this.loader.getAvailableParameters(this.currentStationData);
       this.populateParameters();
       this.updateStationInfo(stationKey);
@@ -236,9 +257,17 @@ class App {
       }
     }
 
-    if (showWalche && this.walcheData) {
-      tasks.push(this.charts.renderWalcheOverlay('chart-walche-overlay', this.walcheData, this.currentStationData));
-      tasks.push(this.charts.renderWalcheRMSE('chart-walche-rmse', this.walcheData, this.currentStationData));
+    if (showWalche) {
+      const measData = this.stationMeasurementData || this.walcheData;
+      const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
+      if (measData) {
+        tasks.push(this.charts.renderWalcheOverlay('chart-walche-overlay', measData, measLabel, this.currentStationData));
+        tasks.push(this.charts.renderWalcheRMSE('chart-walche-rmse', measData, measLabel, this.currentStationData));
+      } else {
+        document.getElementById('chart-walche-overlay').style.display = 'none';
+        document.getElementById('chart-walche-rmse').style.display = 'none';
+        this.showError('Keine Messdaten für diese Station verfügbar.');
+      }
     }
 
     await Promise.all(tasks);

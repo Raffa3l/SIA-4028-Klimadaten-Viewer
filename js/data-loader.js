@@ -83,7 +83,6 @@ class DataLoader {
 
   buildTimestamps(data) {
     return data.map((row) => {
-      const yy = row['time.yy'];
       const mm = String(row['time.mm']).padStart(2, '0');
       const dd = String(row['time.dd']).padStart(2, '0');
       const hh = String(row['time.hh']).padStart(2, '0');
@@ -124,42 +123,42 @@ class DataLoader {
     return params;
   }
 
-  async loadWalcheData() {
-    const url = 'data/WALCHE/Walche_MES01-Istwert_15m.csv';
-    if (this.cache.has(url)) return this.cache.get(url);
-
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Walche-Datei nicht gefunden: ${url}`);
-    const text = await response.text();
-
-    const rawRows = [];
-    await new Promise((resolve) => {
-      Papa.parse(text, {
-        delimiter: ';',
-        skipEmptyLines: true,
-        complete: (results) => {
-          for (const row of results.data) {
-            const dateStr = (row[0] || '').replace(/"/g, '');
-            const m = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):\d{2}$/);
-            if (!m) continue;
-            const val = parseFloat(String(row[1]).replace(',', '.'));
-            if (isNaN(val)) continue;
-            rawRows.push({ dd: m[1], mm: m[2], hh: m[4], val });
-          }
-          resolve();
-        },
-      });
-    });
-
-    // Aggregate 15-min intervals to hourly means, normalize year to 2024 for x-axis alignment
+  async _loadMeasurementFiles(urls) {
     const hourlyMap = new Map();
-    for (const { dd, mm, hh, val } of rawRows) {
-      const key = `2024-${mm}-${dd}T${hh}:00`;
-      if (!hourlyMap.has(key)) hourlyMap.set(key, []);
-      hourlyMap.get(key).push(val);
+
+    for (const url of urls) {
+      let text;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) continue;
+        text = await response.text();
+      } catch {
+        continue;
+      }
+
+      await new Promise((resolve) => {
+        Papa.parse(text, {
+          delimiter: ';',
+          skipEmptyLines: true,
+          complete: (results) => {
+            for (const row of results.data) {
+              const dateStr = (row[0] || '').replace(/"/g, '');
+              const m = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):\d{2}$/);
+              if (!m) continue;
+              const val = parseFloat(String(row[1]).replace(',', '.'));
+              if (isNaN(val)) continue;
+              // Normalize to 2024 for x-axis alignment with SIA climate data
+              const key = `2024-${m[2]}-${m[1]}T${m[4]}:00`;
+              if (!hourlyMap.has(key)) hourlyMap.set(key, []);
+              hourlyMap.get(key).push(val);
+            }
+            resolve();
+          },
+        });
+      });
     }
 
-    const hourly = Array.from(hourlyMap.entries())
+    return Array.from(hourlyMap.entries())
       .map(([ts, vals]) => ({
         timestamp: ts,
         date: ts.slice(0, 10),
@@ -167,9 +166,34 @@ class DataLoader {
         value: vals.reduce((a, b) => a + b, 0) / vals.length,
       }))
       .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
 
-    this.cache.set(url, hourly);
-    return hourly;
+  async loadWalcheData() {
+    const cacheKey = '__walche__';
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
+    const data = await this._loadMeasurementFiles([
+      `${this.dataDir}/WALCHE/Walche_MES01-Istwert_15m-2025.csv`,
+      `${this.dataDir}/WALCHE/Walche_MES01-Istwert_15m-2026-Jan-Jun.csv`,
+    ]);
+
+    if (data.length === 0) throw new Error('Keine Walche-Messdaten gefunden');
+    this.cache.set(cacheKey, data);
+    return data;
+  }
+
+  async loadStationMeasurements(stationKey) {
+    const station = CONFIG.stations[stationKey];
+    if (!station?.measurementFiles) return null;
+
+    const cacheKey = `__meas__${stationKey}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
+    const urls = station.measurementFiles.map((f) => `${this.dataDir}/${station.folder}/${f}`);
+    const data = await this._loadMeasurementFiles(urls);
+
+    this.cache.set(cacheKey, data);
+    return data.length > 0 ? data : null;
   }
 
   async detectAvailableStations() {

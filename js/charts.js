@@ -112,6 +112,7 @@ class ChartManager {
   groupedAggregate(timestamps, values, keyLen, suffix, useSum) {
     const groups = new Map();
     timestamps.forEach((ts, i) => {
+      if (values[i] == null) return;
       const key = ts.substring(0, keyLen);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(values[i]);
@@ -120,8 +121,9 @@ class ChartManager {
     const x = [];
     const y = [];
     for (const [key, vals] of groups) {
+      if (vals.length === 0) continue;
       x.push(key + suffix);
-      const sum = vals.reduce((a, b) => a + (b ?? 0), 0);
+      const sum = vals.reduce((a, b) => a + b, 0);
       y.push(useSum ? sum : sum / vals.length);
     }
     return { x, y };
@@ -167,8 +169,9 @@ class ChartManager {
     const sums = new Array(12).fill(0);
     const counts = new Array(12).fill(0);
     data.forEach((row, i) => {
+      if (values[i] == null) return;
       const m = row['time.mm'] - 1;
-      sums[m] += (values[i] ?? 0);
+      sums[m] += values[i];
       counts[m]++;
     });
     return sums.map((s, i) => counts[i] > 0 ? (useSum ? s : s / counts[i]) : 0);
@@ -345,7 +348,7 @@ class ChartManager {
     return abs.length > 0 ? abs.reduce((a, b) => a + b, 0) / abs.length : NaN;
   }
 
-  async renderWalcheOverlay(containerId, walcheData, stationData) {
+  async renderWalcheOverlay(containerId, walcheData, measurementLabel, stationData) {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
     const walcheMonths = new Set(walcheData.map((r) => r.month));
@@ -372,13 +375,13 @@ class ChartManager {
       });
     }
 
-    // Walche measured values on top — bold, dotted, dark
+    // Measured values on top — bold, dotted, dark
     traces.push({
       x: walcheDaily.dates,
       y: walcheDaily.means,
       type: 'scatter',
       mode: 'lines',
-      name: 'Messung Walche',
+      name: measurementLabel,
       line: { color: '#1a1a2e', width: 2.5, dash: 'dot' },
       hovertemplate: '%{y:.1f} °C<extra></extra>',
     });
@@ -386,14 +389,14 @@ class ChartManager {
     const layout = {
       ...METEO_LAYOUT,
       title: {
-        text: `Lufttemperatur Tagesmittel: Messung Walche vs. Klimadaten ${stationName}`,
+        text: `Lufttemperatur Tagesmittel: ${measurementLabel} vs. Klimadaten ${stationName}`,
         font: { size: 16, weight: 'bold' },
         x: 0.01,
         xanchor: 'left',
       },
       xaxis: {
         ...METEO_LAYOUT.xaxis,
-        title: { text: 'Datum (Jan–Jun 2026, normiert auf 2024)' },
+        title: { text: 'Datum (Messwerte 2025–2026, normiert auf 2024 zur Achsenausrichtung)' },
       },
       yaxis: {
         ...METEO_LAYOUT.yaxis,
@@ -408,7 +411,7 @@ class ChartManager {
     });
   }
 
-  async renderWalcheRMSE(containerId, walcheData, stationData) {
+  async renderWalcheRMSE(containerId, walcheData, measurementLabel, stationData) {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
     const walcheMonths = new Set(walcheData.map((r) => r.month));
@@ -454,12 +457,13 @@ class ChartManager {
       },
     ];
 
-    const maxVal = Math.max(...rmseVals, ...maeVals);
+    const rawMax = Math.max(...rmseVals, ...maeVals);
+    const safeMax = Number.isFinite(rawMax) && rawMax > 0 ? rawMax : 5;
 
     const layout = {
       ...METEO_LAYOUT,
       title: {
-        text: `Abweichung vom Messwert Walche — ${stationName} (Tagesmitten Jan–Jun)`,
+        text: `Abweichung vom Messwert (${measurementLabel}) — ${stationName} (Tagesmittel)`,
         font: { size: 16, weight: 'bold' },
         x: 0.01,
         xanchor: 'left',
@@ -469,7 +473,7 @@ class ChartManager {
       yaxis: {
         ...METEO_LAYOUT.yaxis,
         title: { text: 'Abweichung (°C)', standoff: 10 },
-        range: [0, maxVal * 1.25],
+        range: [0, safeMax * 1.25],
       },
     };
 

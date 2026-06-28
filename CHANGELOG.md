@@ -2,6 +2,28 @@
 
 Alle wesentlichen Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [1.3.0] — 2026-06-28
+
+### Hinzugefügt
+- SMA-Messdatenvergleich: Station SMA lädt eigene MeteoSchweiz-Messungen (`SMA_clean_15m_2025.csv`, `SMA_clean_15m-2026-Jan-Jun.csv`) statt Walche-Daten für den Messvergleich
+- `DataLoader.loadStationMeasurements()`: generische Methode für stationsspezifische Messdateien (konfigurierbar via `measurementFiles` / `measurementLabel` in `CONFIG.stations`)
+- `DataLoader._loadMeasurementFiles()`: gemeinsame Ladelogik für alle Messdaten-CSVs (mehrere Dateien, beliebig viele Kopfzeilen)
+- Walche-Datenbasis erweitert: neu zwei Dateien (`Walche_MES01-Istwert_15m-2025.csv` + `Walche_MES01-Istwert_15m-2026-Jan-Jun.csv`) — deckt nun ~12 Monate ab statt nur Jan–Jun 2026
+- Automatische Aggregationsumschaltung: Auswahl «Monatsvergleich»/«Differenz» schaltet Aggregation auf Monatsmittel; «Heatmap» schaltet auf Stündlich
+- Symmetrischer Rückschalter: manuelle Aggregationsänderung auf einen inkompatiblen Wert setzt Ansicht auf «Alle Diagramme» zurück (verhindert leere Seite)
+- RMSE/MAE-Erklärung im README mit Formeln und Interpretation
+
+### Geändert
+- Ansicht «Messvergleich Walche» umbenannt zu «Messvergleich» — Diagrammtitel und Legendenbezeichnungen werden dynamisch aus `measurementLabel` gesetzt
+- X-Achsen-Beschriftung im Overlay-Diagramm erklärt nun explizit die 2024-Normierung
+- `DataLoader.loadWalcheData()` lädt sequenziell vor dem ersten `loadStation()`-Aufruf, eliminiert Race Condition beim App-Start
+
+### Behoben
+- Null-Werte in `groupedAggregate` und `monthlyMeans` wurden fälschlicherweise als 0 in Mittelwert-Berechnung einbezogen (Zähler wurde trotzdem erhöht) — jetzt werden null-Werte übersprungen
+- `Math.max()` auf leeren Arrays lieferte `-Infinity` → ungültige Plotly-Achsen-Range im RMSE-Diagramm; jetzt abgesichert mit `Number.isFinite()` Prüfung
+- Ungenutzte Variable `yy` in `DataLoader.buildTimestamps()` entfernt
+- Walche-Ansicht zeigte leere Container ohne Fehlermeldung, wenn keine Messdaten geladen werden konnten
+
 ## [1.2.0] — 2026-06-28
 
 ### Hinzugefügt

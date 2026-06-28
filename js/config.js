@@ -25,6 +25,8 @@ const CONFIG = {
       abbr2023: 'SMA',
       abbr2060: 'SMA',
       folder: 'SMA',
+      measurementFiles: ['SMA_clean_15m_2025.csv', 'SMA_clean_15m-2026-Jan-Jun.csv'],
+      measurementLabel: 'Messung SMA Fluntern',
     },
   },
 
