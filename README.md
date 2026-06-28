@@ -72,8 +72,6 @@ Quelle: MeteoSchweiz (Hrsg.) 2025: Bereitstellung der Klimadaten für Bauphysik,
 
 Lizenz der Daten: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
-Weitere Dokumentation zu den Open Data von MeteoSchweiz: [opendatadocs.meteoswiss.ch](https://opendatadocs.meteoswiss.ch/de/)
-
 ## Installation und Start
 
 ### Voraussetzungen
@@ -121,7 +119,7 @@ SIA 4028/
 │   ├── REH/                Zürich / Affoltern (SIA 4028)
 │   ├── SMA/                Zürich / Fluntern (SIA 4028)
 │   ├── ZUESTA/             Zürich Stadt (SIA 4028)
-│   └── WALCHE/             Aussentemperaturmessung Standort Walche (15-min-Werte)
+│   └── WALCHE/             Aussentemperaturmessung Walche Zürich Stadt
 ├── docs/                   Hintergrunddokumente und Referenzen
 ├── README.md
 └── CHANGELOG.md
@@ -140,7 +138,7 @@ SIA 4028/
 
 Delimiter: `,` — Zeitstempel in Spalten `time.yy`, `time.mm`, `time.dd`, `time.hh`
 
-### Messdaten Walche-Gebäude
+### Messdaten Walche Zürich Stadt
 
 | Datei | Beschreibung |
 |-------|-------------|
@@ -162,7 +160,7 @@ Delimiter: `;` — gleiches Format wie Walche-Messdaten. Wird im Messvergleich a
 
 ### Verfügbare Parameter
 
-**In beiden Perioden (2023 & 2060):**
+**In beiden Perioden (2023 und 2060):**
 Lufttemperatur, Relative Feuchtigkeit, Windgeschwindigkeit, Windrichtung, Bewölkung, Globalstrahlung, Diffuse Strahlung, Direktstrahlung
 
 **Nur in 2023:**
