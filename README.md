@@ -29,11 +29,11 @@ Die verfügbaren Diagramme hängen von der gewählten Aggregation ab:
 | **Tagesmittel** | Linien (365 Werte) | — | — | — |
 | **Monatsmittel** | Linien + Marker (12 Werte) | Balkendiagramm | Balkendiagramm | — |
 
-- **Zeitreihe**: Immer sichtbar, zeigt den Jahresverlauf aller aktiven Szenarien
+- **Zeitreihe**: Immer sichtbar, zeigt den Jahresverlauf aller aktiven Szenarien; bei Parameter Lufttemperatur zusätzlich eine gepunktete Kurve pro Messjahr (2025, 2026)
 - **Monatlicher Vergleich**: Balken pro Monat und Szenario (nur bei Monatsmittel)
 - **Differenz 2060 vs. 2023**: Monatliche Differenz zwischen Zukunft und Gegenwart (nur bei Monatsmittel, nur für vergleichbare Parameter)
 - **Heatmaps**: Stunde × Tag Matrix, eine pro aktivem Szenario (nur bei stündlicher Auflösung)
-- **Messvergleich**: Unabhängig von Aggregation; zeigt Tagesmitten-Overlay (2025–2026, normiert auf 2024) und RMSE/MAE-Balkendiagramm pro Szenario
+- **Messvergleich**: Unabhängig von Aggregation; zeigt Tagesmitten-Overlay (eine Kurve pro Messjahr, normiert auf 2024) und RMSE/MAE-Balkendiagramm pro Szenario und Messjahr
 
 > **Hinweis:** Beim Wechsel auf «Monatsvergleich» oder «Differenz 2060 vs. 2023» wird die Aggregation automatisch auf *Monatsmittel* umgestellt. Beim Wechsel auf «Heatmap» wird automatisch auf *Stündlich* umgestellt.
 

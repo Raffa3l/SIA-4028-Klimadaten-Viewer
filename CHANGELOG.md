@@ -12,17 +12,25 @@ Alle wesentlichen Änderungen an diesem Projekt werden in dieser Datei dokumenti
 - Automatische Aggregationsumschaltung: Auswahl «Monatsvergleich»/«Differenz» schaltet Aggregation auf Monatsmittel; «Heatmap» schaltet auf Stündlich
 - Symmetrischer Rückschalter: manuelle Aggregationsänderung auf einen inkompatiblen Wert setzt Ansicht auf «Alle Diagramme» zurück (verhindert leere Seite)
 - RMSE/MAE-Erklärung im README mit Formeln und Interpretation
+- Eine Kurve pro Messjahr: Messdaten in Overlay- und Zeitreihen-Diagramm werden nach Kalenderjahr getrennt dargestellt (separate gepunktete Linien für 2025 und 2026), umgesetzt via `ChartManager._measurementTraces()`
+- Messdaten in Zeitreihe: Für den Parameter Lufttemperatur werden im Zeitreihen-Diagramm zusätzlich die Messdaten eingeblendet (gepunktete Linie je Messjahr)
+- Sidebar-Messquellenanzeige: Unterhalb der Szenarien-Legende wird dynamisch die aktive Messquelle (Walche oder SMA) angezeigt; bei Parametern ohne Messdatenvergleich ausgeblendet
+- RMSE-Diagramm pro Messjahr: RMSE und MAE werden separat für 2025 und 2026 berechnet und als gruppierte Balken dargestellt — vermeidet fehlerhafte jahresübergreifende Mittelung
 
 ### Geändert
 - Ansicht «Messvergleich Walche» umbenannt zu «Messvergleich» — Diagrammtitel und Legendenbezeichnungen werden dynamisch aus `measurementLabel` gesetzt
 - X-Achsen-Beschriftung im Overlay-Diagramm erklärt nun explizit die 2024-Normierung
+- Y-Achse im Overlay-Diagramm (`dtick: 10`) für einheitliche 10 K-Schritte bei allen Stationen
 - `DataLoader.loadWalcheData()` lädt sequenziell vor dem ersten `loadStation()`-Aufruf, eliminiert Race Condition beim App-Start
 
 ### Behoben
 - Null-Werte in `groupedAggregate` und `monthlyMeans` wurden fälschlicherweise als 0 in Mittelwert-Berechnung einbezogen (Zähler wurde trotzdem erhöht) — jetzt werden null-Werte übersprungen
 - `Math.max()` auf leeren Arrays lieferte `-Infinity` → ungültige Plotly-Achsen-Range im RMSE-Diagramm; jetzt abgesichert mit `Number.isFinite()` Prüfung
+- RMSE-Diagramm mittelte Messdaten aus 2025 und 2026 für denselben Kalendertag zusammen (normierte Datums-Schlüssel kollidierten); jetzt wird RMSE pro Jahr separat berechnet
+- Cache-Inkonsistenz in `loadStationMeasurements`: bei nicht erreichbaren Messdateien wurde `[]` gecacht, beim zweiten Aufruf jedoch `[]` zurückgegeben (truthy) statt `null` — Walche-Fallback wurde umgangen
 - Ungenutzte Variable `yy` in `DataLoader.buildTimestamps()` entfernt
 - Walche-Ansicht zeigte leere Container ohne Fehlermeldung, wenn keine Messdaten geladen werden konnten
+- Sidebar-Messquellenanzeige war auch bei Parametern ohne Messdaten sichtbar (z. B. Feuchtigkeit, Wind)
 
 ## [1.2.0] — 2026-06-28
 

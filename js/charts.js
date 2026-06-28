@@ -1,3 +1,6 @@
+// Colors for measured data traces, cycled by year (oldest → newest)
+const MEASUREMENT_YEAR_COLORS = ['#1a1a2e', '#64748b', '#374151'];
+
 const CHART_COLORS = {
   dry2023:  'rgb(27, 79, 114)',
   warm2023: 'rgb(46, 134, 193)',
@@ -145,7 +148,65 @@ class ChartManager {
     };
   }
 
-  async renderTimeseries(containerId, stationData, paramKey, activeScenarios, aggregation) {
+  _monthlyMeansFromHourly(hourlyData) {
+    const byMonth = new Map();
+    for (const { month, value } of hourlyData) {
+      if (!byMonth.has(month)) byMonth.set(month, []);
+      byMonth.get(month).push(value);
+    }
+    const months = [...byMonth.keys()].sort((a, b) => a - b);
+    return {
+      dates: months.map((m) => `2024-${String(m).padStart(2, '0')}-15T12:00`),
+      means: months.map((m) => {
+        const v = byMonth.get(m);
+        return v.reduce((a, b) => a + b, 0) / v.length;
+      }),
+    };
+  }
+
+  _measurementTraces(measData, measLabel, aggregation) {
+    const byYear = new Map();
+    for (const entry of measData) {
+      if (!byYear.has(entry.year)) byYear.set(entry.year, []);
+      byYear.get(entry.year).push(entry);
+    }
+
+    const traces = [];
+    [...byYear.keys()].sort().forEach((year, idx) => {
+      const yearData = byYear.get(year);
+      const color = MEASUREMENT_YEAR_COLORS[idx % MEASUREMENT_YEAR_COLORS.length];
+
+      let x, y;
+      if (aggregation === 'hourly') {
+        x = yearData.map((e) => e.timestamp);
+        y = yearData.map((e) => e.value);
+      } else if (aggregation === 'daily') {
+        const d = this._dailyMeansFromHourly(yearData);
+        x = d.dates;
+        y = d.means;
+      } else {
+        const d = this._monthlyMeansFromHourly(yearData);
+        x = d.dates;
+        y = d.means;
+      }
+
+      const trace = {
+        x,
+        y,
+        type: aggregation === 'hourly' ? 'scattergl' : 'scatter',
+        mode: aggregation === 'monthly' ? 'lines+markers' : 'lines',
+        name: `${measLabel} ${year}`,
+        line: { color, width: aggregation === 'hourly' ? 1 : 2, dash: 'dot' },
+        hovertemplate: '%{y:.1f} °C<extra></extra>',
+      };
+      if (aggregation === 'monthly') trace.marker = { size: 6, color };
+      traces.push(trace);
+    });
+
+    return traces;
+  }
+
+  async renderTimeseries(containerId, stationData, paramKey, activeScenarios, aggregation, measData = null, measLabel = '') {
     const paramInfo =
       CONFIG.parameterMapping[paramKey] || CONFIG.parametersOnly2023[paramKey];
     if (!paramInfo) return;
@@ -155,6 +216,12 @@ class ChartManager {
     const title = `${paramInfo.label} — ${stationName}`;
 
     const traces = this.createTimeseriesTraces(stationData, paramKey, activeScenarios, aggregation);
+
+    // Append measured data traces (temperature only)
+    if (measData && paramKey === 'temp') {
+      traces.push(...this._measurementTraces(measData, measLabel, aggregation));
+    }
+
     const layout = this.buildLayout(paramInfo, title);
 
     await Plotly.newPlot(containerId, traces, layout, {
@@ -352,7 +419,6 @@ class ChartManager {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
     const walcheMonths = new Set(walcheData.map((r) => r.month));
-    const walcheDaily = this._dailyMeansFromHourly(walcheData);
 
     const traces = [];
 
@@ -375,16 +441,8 @@ class ChartManager {
       });
     }
 
-    // Measured values on top — bold, dotted, dark
-    traces.push({
-      x: walcheDaily.dates,
-      y: walcheDaily.means,
-      type: 'scatter',
-      mode: 'lines',
-      name: measurementLabel,
-      line: { color: '#1a1a2e', width: 2.5, dash: 'dot' },
-      hovertemplate: '%{y:.1f} °C<extra></extra>',
-    });
+    // One measured trace per year — grouped by actual calendar year
+    traces.push(...this._measurementTraces(walcheData, measurementLabel, 'daily'));
 
     const layout = {
       ...METEO_LAYOUT,
@@ -401,6 +459,7 @@ class ChartManager {
       yaxis: {
         ...METEO_LAYOUT.yaxis,
         title: { text: 'Lufttemperatur (°C)', standoff: 10 },
+        dtick: 10,
       },
     };
 
@@ -414,51 +473,68 @@ class ChartManager {
   async renderWalcheRMSE(containerId, walcheData, measurementLabel, stationData) {
     const stationKey = document.getElementById('station-select')?.value;
     const stationName = CONFIG.stations[stationKey]?.name || stationKey;
-    const walcheMonths = new Set(walcheData.map((r) => r.month));
-    const walcheDaily = this._dailyMeansFromHourly(walcheData);
 
-    const labels = [];
-    const rmseVals = [];
-    const maeVals = [];
-    const colors = [];
-
-    for (const scenario of Object.keys(SCENARIO_LABELS)) {
-      const data = stationData[scenario];
-      if (!data) continue;
-      const is2060 = scenario.includes('2060');
-      const daily = this._dailyMeansFromClimate(data, 'temp', is2060, walcheMonths);
-      if (!daily) continue;
-
-      labels.push(SCENARIO_LABELS[scenario]);
-      rmseVals.push(this._rmse(walcheDaily.dates, walcheDaily.means, daily.dates, daily.means));
-      maeVals.push(this._mae(walcheDaily.dates, walcheDaily.means, daily.dates, daily.means));
-      colors.push(CHART_COLORS[scenario]);
+    // Group by real year — avoids cross-year averaging when computing daily means
+    const byYear = new Map();
+    for (const entry of walcheData) {
+      if (!byYear.has(entry.year)) byYear.set(entry.year, []);
+      byYear.get(entry.year).push(entry);
     }
+    const years = [...byYear.keys()].sort();
 
-    const traces = [
-      {
+    const traces = [];
+
+    years.forEach((year, yearIdx) => {
+      const yearData = byYear.get(year);
+      const yearMonths = new Set(yearData.map((r) => r.month));
+      const yearDaily = this._dailyMeansFromHourly(yearData);
+      const measColor = MEASUREMENT_YEAR_COLORS[yearIdx % MEASUREMENT_YEAR_COLORS.length];
+      // First year shown slightly transparent so both years are distinguishable
+      const barOpacity = years.length > 1 && yearIdx === 0 ? 0.55 : 1.0;
+
+      const labels = [];
+      const rmseVals = [];
+      const maeVals = [];
+      const barColors = [];
+
+      for (const scenario of Object.keys(SCENARIO_LABELS)) {
+        const data = stationData[scenario];
+        if (!data) continue;
+        const is2060 = scenario.includes('2060');
+        const daily = this._dailyMeansFromClimate(data, 'temp', is2060, yearMonths);
+        if (!daily) continue;
+
+        labels.push(SCENARIO_LABELS[scenario]);
+        rmseVals.push(this._rmse(yearDaily.dates, yearDaily.means, daily.dates, daily.means));
+        maeVals.push(this._mae(yearDaily.dates, yearDaily.means, daily.dates, daily.means));
+        barColors.push(CHART_COLORS[scenario]);
+      }
+
+      traces.push({
         x: labels,
         y: rmseVals,
         type: 'bar',
-        name: 'RMSE',
-        marker: { color: colors },
-        text: rmseVals.map((v) => `${v.toFixed(2)} °C`),
+        name: `RMSE ${year}`,
+        marker: { color: barColors, opacity: barOpacity },
+        text: rmseVals.map((v) => (Number.isFinite(v) ? `${v.toFixed(2)} °C` : '')),
         textposition: 'outside',
-        hovertemplate: 'RMSE: %{y:.2f} °C<extra></extra>',
-      },
-      {
+        hovertemplate: `RMSE ${year}: %{y:.2f} °C<extra></extra>`,
+      });
+
+      traces.push({
         x: labels,
         y: maeVals,
         type: 'scatter',
         mode: 'markers',
-        name: 'MAE',
-        marker: { color: '#1a1a2e', size: 11, symbol: 'diamond' },
-        hovertemplate: 'MAE: %{y:.2f} °C<extra></extra>',
-      },
-    ];
+        name: `MAE ${year}`,
+        marker: { color: measColor, size: 11, symbol: yearIdx === 0 ? 'circle' : 'diamond' },
+        hovertemplate: `MAE ${year}: %{y:.2f} °C<extra></extra>`,
+      });
+    });
 
-    const rawMax = Math.max(...rmseVals, ...maeVals);
-    const safeMax = Number.isFinite(rawMax) && rawMax > 0 ? rawMax : 5;
+    const allVals = traces.flatMap((t) => t.y).filter(Number.isFinite);
+    const rawMax = allVals.length > 0 ? Math.max(...allVals) : 5;
+    const safeMax = rawMax > 0 ? rawMax : 5;
 
     const layout = {
       ...METEO_LAYOUT,
@@ -469,6 +545,7 @@ class ChartManager {
         xanchor: 'left',
       },
       hovermode: 'x',
+      barmode: 'group',
       xaxis: { ...BASE_AXIS },
       yaxis: {
         ...METEO_LAYOUT.yaxis,

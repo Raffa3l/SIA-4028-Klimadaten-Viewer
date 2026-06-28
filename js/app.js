@@ -159,6 +159,11 @@ class App {
       <strong>${station.name}</strong>
       <div class="data-status">${dataStatus.join(' ')}</div>
     `;
+
+    // Update measurement source label in sidebar
+    const measLabel = station?.measurementLabel || 'Messung Walche';
+    const measEl = document.getElementById('measurement-source-label');
+    if (measEl) measEl.textContent = measLabel;
   }
 
   getActiveScenarios() {
@@ -184,6 +189,11 @@ class App {
       ? activeScenarios
       : activeScenarios.filter((s) => s.includes('2023'));
 
+    // Show measurement-source legend only when temp is active and measurements exist
+    const hasMeasurements = paramKey === 'temp' && !!(this.stationMeasurementData || this.walcheData);
+    const measInfoEl = document.querySelector('.measurement-source-info');
+    if (measInfoEl) measInfoEl.style.display = hasMeasurements ? 'flex' : 'none';
+
     const isMonthly = aggregation === 'monthly';
     const showWalche = viewMode === 'walche';
     const showTimeseries = !showWalche && (viewMode === 'timeseries' || viewMode === 'all');
@@ -208,13 +218,17 @@ class App {
     const tasks = [];
 
     if (showTimeseries) {
+      const measData = paramKey === 'temp' ? (this.stationMeasurementData || this.walcheData) : null;
+      const measLabel = CONFIG.stations[this.currentStation]?.measurementLabel || 'Messung Walche';
       tasks.push(
         this.charts.renderTimeseries(
           'chart-timeseries',
           this.currentStationData,
           paramKey,
           scenariosToUse,
-          aggregation
+          aggregation,
+          measData,
+          measLabel
         )
       );
     }

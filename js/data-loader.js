@@ -124,6 +124,7 @@ class DataLoader {
   }
 
   async _loadMeasurementFiles(urls) {
+    // Key uses the real year so readings from different years are kept separate
     const hourlyMap = new Map();
 
     for (const url of urls) {
@@ -147,10 +148,10 @@ class DataLoader {
               if (!m) continue;
               const val = parseFloat(String(row[1]).replace(',', '.'));
               if (isNaN(val)) continue;
-              // Normalize to 2024 for x-axis alignment with SIA climate data
-              const key = `2024-${m[2]}-${m[1]}T${m[4]}:00`;
-              if (!hourlyMap.has(key)) hourlyMap.set(key, []);
-              hourlyMap.get(key).push(val);
+              // Real year in key — prevents cross-year averaging
+              const key = `${m[3]}-${m[2]}-${m[1]}T${m[4]}:00`;
+              if (!hourlyMap.has(key)) hourlyMap.set(key, { year: parseInt(m[3]), vals: [] });
+              hourlyMap.get(key).vals.push(val);
             }
             resolve();
           },
@@ -159,12 +160,17 @@ class DataLoader {
     }
 
     return Array.from(hourlyMap.entries())
-      .map(([ts, vals]) => ({
-        timestamp: ts,
-        date: ts.slice(0, 10),
-        month: parseInt(ts.slice(5, 7)),
-        value: vals.reduce((a, b) => a + b, 0) / vals.length,
-      }))
+      .map(([realTs, { year, vals }]) => {
+        // Normalize display timestamp to 2024 for x-axis alignment with SIA climate data
+        const normTs = `2024-${realTs.slice(5, 10)}T${realTs.slice(11)}`;
+        return {
+          year,
+          timestamp: normTs,
+          date: normTs.slice(0, 10),
+          month: parseInt(normTs.slice(5, 7)),
+          value: vals.reduce((a, b) => a + b, 0) / vals.length,
+        };
+      })
       .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
 
@@ -191,9 +197,9 @@ class DataLoader {
 
     const urls = station.measurementFiles.map((f) => `${this.dataDir}/${station.folder}/${f}`);
     const data = await this._loadMeasurementFiles(urls);
-
-    this.cache.set(cacheKey, data);
-    return data.length > 0 ? data : null;
+    const result = data.length > 0 ? data : null;
+    this.cache.set(cacheKey, result);
+    return result;
   }
 
   async detectAvailableStations() {
